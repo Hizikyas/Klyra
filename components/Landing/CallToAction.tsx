@@ -1,64 +1,98 @@
-import { ArrowRight, Users, MessageCircle } from 'lucide-react';
+import { ArrowRight, Users, MessageCircle, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { motion } from 'framer-motion';
 
 const CallToAction = () => {
   return (
-    <section className="py-20 relative overflow-hidden">
+    <section id="call-to-action" className="py-20 relative overflow-hidden">
       {/* Background Elements */}
       <div className="absolute inset-0 gradient-animation opacity-20" />
-      <div className="absolute inset-0 grid-background opacity-10" />
+      <div className="absolute inset-0 opacity-80" />
       
       <div className="container mx-auto px-6 relative z-10">
         <div className="max-w-4xl mx-auto text-center">
           
           {/* Floating Icons */}
-          <div className="flex justify-center items-center mb-8 relative">
-            <div className="absolute -left-16 top-4">
-              <div className="w-12 h-12 bg-primary/20 rounded-2xl glass-effect flex items-center justify-center animate-float">
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            viewport={{ once: true }}
+            className="flex justify-center items-center mb-8 relative"
+          >
+            <motion.div 
+              animate={{ y: [-10, 10, -10] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute -left-16 top-4"
+            >
+              <div className="w-12 h-12 bg-primary/20 rounded-2xl glass-effect flex items-center justify-center">
                 <MessageCircle className="w-6 h-6 text-primary" />
               </div>
-            </div>
+            </motion.div>
             
             <div className="inline-flex items-center px-6 py-3 rounded-full glass-effect">
-              <Users className="w-5 h-5 text-primary mr-2" />
+              <Video className="w-5 h-5 text-primary mr-2" />
               <span className="text-sm font-medium text-primary">Join the Community</span>
             </div>
             
-            <div className="absolute -right-16 top-4">
-              <div className="w-12 h-12 bg-secondary-brand/20 rounded-2xl glass-effect flex items-center justify-center animate-float" 
-                   style={{ animationDelay: '1s' }}>
+            <motion.div 
+              animate={{ y: [10, -10, 10] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+              className="absolute -right-16 top-4"
+            >
+              <div className="w-12 h-12 bg-secondary-brand/20 rounded-2xl glass-effect flex items-center justify-center">
                 <Users className="w-6 h-6 text-secondary-brand" />
               </div>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
           
           {/* Main Content */}
-          <h2 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight">
+          <motion.h2 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            viewport={{ once: true }}
+            className="text-4xl lg:text-6xl font-bold mb-6 leading-tight"
+          >
             Ready to Transform
             <span className="block bg-gradient-to-r from-primary to-secondary-brand bg-clip-text text-transparent">
               Your Communication?
             </span>
-          </h2>
+          </motion.h2>
           
-          <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
-            Join thousands of users who've already discovered the power of seamless, 
-            real-time communication with Klyra.
-          </p>
+          <motion.p 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            viewport={{ once: true }}
+            className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed"
+          >
+            Join millions of users who've already discovered the power of seamless, 
+            real-time communication with Klyra's advanced video and chat platform.
+          </motion.p>
           
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.6 }}
+            viewport={{ once: true }}
+            className="flex flex-col sm:flex-row gap-4 justify-center mb-12"
+          >
             <Button className="btn-primary group text-lg px-8 py-4">
               Join Klyra Today
               <ArrowRight className="w-6 h-6 ml-2 group-hover:translate-x-1 transition-transform duration-200" />
             </Button>
-            
-            <Button className="btn-secondary text-lg px-8 py-4">
-              Schedule Demo
-            </Button>
-          </div>
+          </motion.div>
           
           {/* Trust Indicators */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 pt-8 border-t border-glass-border/30">
+          <motion.div 
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.8 }}
+            viewport={{ once: true }}
+            className="grid grid-cols-2 md:grid-cols-4 gap-8 pt-8 border-t border-glass-border/30"
+          >
             <div className="text-center">
               <div className="text-3xl font-bold text-primary mb-1">1M+</div>
               <div className="text-sm text-muted-foreground">Active Users</div>
@@ -75,7 +109,7 @@ const CallToAction = () => {
               <div className="text-3xl font-bold text-primary mb-1">4.9/5</div>
               <div className="text-sm text-muted-foreground">User Rating</div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </div>
       

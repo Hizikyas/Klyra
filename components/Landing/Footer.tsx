@@ -1,21 +1,15 @@
-import { MessageSquare, Github, Twitter, Linkedin, Mail } from 'lucide-react';
+import { Github, Twitter, Linkedin } from 'lucide-react';
 
 const Footer = () => {
   return (
-    <footer className="border-t border-glass-border/30 bg-card/50 backdrop-blur-sm">
+    <footer id="contact" className="border-t border-glass-border/30 bg-card/50 backdrop-blur-sm">
       <div className="container mx-auto px-6 py-12">
         <div className="grid md:grid-cols-4 gap-8">
           
           {/* Brand */}
           <div className="md:col-span-1">
             <div className="flex items-center space-x-3 mb-4">
-              <div className="relative">
-                <MessageSquare className="w-8 h-8 text-primary" />
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-secondary-brand rounded-full animate-pulse" />
-              </div>
-              <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary-brand bg-clip-text text-transparent">
-                Klyra
-              </span>
+               <img src="/klyra_font.png" alt="Klyra Logo" width={64} height={64} />
             </div>
             <p className="text-muted-foreground mb-6 max-w-xs">
               Empowering seamless communication through innovative chat and video technology.
@@ -70,16 +64,9 @@ const Footer = () => {
         </div>
         
         {/* Bottom Bar */}
-        <div className="border-t border-glass-border/30 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
-          <div className="text-muted-foreground text-sm mb-4 md:mb-0">
-            © 2024 Klyra. All rights reserved. Built with passion for communication.
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-              <Mail className="w-4 h-4" />
-              <span>hello@klyra.com</span>
-            </div>
+        <div className="border-t border-glass-border/30 mt-12 pt-8 flex justify-center items-center">
+          <div className="text-muted-foreground text-sm text-center">
+            © 2025 Klyra. All rights reserved. Built with passion for communication.
           </div>
         </div>
       </div>
