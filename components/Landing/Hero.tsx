@@ -3,8 +3,15 @@
 import { Play, MessageCircle, Video, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
 
 export default function Hero() {
+  const router = useRouter();
+
+  const handleStartFreeTrial = () => {
+    router.push('/auth');
+  };
+
   return (
     <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Grid Background - Only in Hero */}
@@ -50,15 +57,15 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.6 }}
           className="flex flex-col sm:flex-row gap-4 mb-16"
         >
-          <Button className="btn-primary group">
+          <Button className="btn-primary group" onClick={handleStartFreeTrial}>
             Start Free Trial
             <Play className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform duration-200" />
           </Button>
         </motion.div>
       </div>
 
-      {/* Fade out transition to next section */}
-      <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-background via-background/50 to-transparent opacity-80" />
+      {/* Smooth transition gradient to next section */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background via-background/80 to-transparent" />
     </section>
   );
 }

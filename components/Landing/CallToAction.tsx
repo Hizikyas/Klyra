@@ -1,8 +1,15 @@
 import { ArrowRight, Users, MessageCircle, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 
 const CallToAction = () => {
+  const router = useRouter();
+
+  const handleJoinKlyra = () => {
+    router.push('/auth');
+  };
+
   return (
     <section id="call-to-action" className="py-20 relative overflow-hidden">
       {/* Background Elements */}
@@ -79,7 +86,7 @@ const CallToAction = () => {
             viewport={{ once: true }}
             className="flex flex-col sm:flex-row gap-4 justify-center mb-12"
           >
-            <Button className="btn-primary group text-lg px-8 py-4">
+            <Button className="btn-primary group text-lg px-8 py-4" onClick={handleJoinKlyra}>
               Join Klyra Today
               <ArrowRight className="w-6 h-6 ml-2 group-hover:translate-x-1 transition-transform duration-200" />
             </Button>

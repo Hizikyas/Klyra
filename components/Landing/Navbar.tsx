@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -17,6 +19,10 @@ const Navbar = () => {
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
     }
+  };
+
+  const handleGetStarted = () => {
+    router.push('/auth');
   };
 
   return (
@@ -62,7 +68,7 @@ const Navbar = () => {
 
         {/* Right Side */}
         <div className="flex items-center space-x-4">
-          <Button className="btn-primary">
+          <Button className="btn-primary" onClick={handleGetStarted}>
             Get Started
           </Button>
         </div>
