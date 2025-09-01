@@ -15,12 +15,10 @@ const ForgotPassword = () => {
 
   const router = useRouter();
 
-  // Initialize OTP input refs
   useEffect(() => {
     otpInputRefs.current = otpInputRefs.current.slice(0, 6);
   }, []);
 
-  // Validation functions
   const isEmailValid = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   };
@@ -33,9 +31,7 @@ const ForgotPassword = () => {
     return newPassword.length >= 8 && newPassword === confirmPassword;
   };
 
-  // Handle OTP input change
   const handleOtpChange = (value: string, index: number) => {
-    // Only allow digits
     if (!/^\d*$/.test(value)) return;
     
     const newOtp = otp.split('');
@@ -43,20 +39,17 @@ const ForgotPassword = () => {
     const newOtpStr = newOtp.join('');
     setOtp(newOtpStr);
 
-    // Auto-focus next input
     if (value && index < 5) {
       otpInputRefs.current[index + 1]?.focus();
     }
   };
 
-  // Handle OTP key down (for backspace)
   const handleOtpKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
       otpInputRefs.current[index - 1]?.focus();
     }
   };
 
-  // Handle OTP paste
   const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text');
@@ -64,7 +57,6 @@ const ForgotPassword = () => {
     
     if (pastedDigits.length === 6) {
       setOtp(pastedDigits);
-      // Focus the last input after paste
       setTimeout(() => {
         otpInputRefs.current[5]?.focus();
       }, 0);
@@ -77,24 +69,19 @@ const ForgotPassword = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Blue-Black Circular Gradient Background - Same as Authentication */}
+      {/* Background */}
       <div className="absolute inset-0 overflow-hidden">
-        {/* Large blue-black circular gradient */}
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] bg-gradient-to-r from-blue-900/30 via-blue-800/25 to-black/20 rounded-full blur-3xl" />
-        
-        {/* Additional smaller blue-black gradients */}
         <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-gradient-to-r from-blue-800/25 to-black/20 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-gradient-to-r from-blue-700/20 to-black/15 rounded-full blur-3xl" />
-        
-        {/* Subtle accent gradients */}
         <div className="absolute top-1/3 right-1/3 w-[400px] h-[400px] bg-gradient-to-r from-blue-600/15 to-indigo-800/15 rounded-full blur-3xl" />
       </div>
 
-      {/* Go Back Button - Above the card, centered */}
+      {/* Go Back Button */}
       <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-20">
         <button 
           onClick={() => router.back()} 
-          className="flex items-center gap-2 text-white hover:text-blue-400 transition-colors duration-200 font-['Archiv_Grotesk'] text-sm font-medium bg-black/20 backdrop-blur-sm px-4 py-2 rounded-full"
+          className="flex items-center gap-2 text-white hover:text-blue-400 transition-colors duration-200 px-4 py-2 rounded-full bg-black/20 backdrop-blur-sm"
         >
           <ArrowLeft className="w-4 h-4" />
           Go Back
@@ -104,22 +91,17 @@ const ForgotPassword = () => {
       <Stepper
         initialStep={1}
         onFinalStepCompleted={handleComplete}
-        stepCircleContainerClassName="p-0"
-        stepContainerClassName="p-6 pt-8"
-        contentClassName="p-8 pb-4"
-        footerClassName="p-8 pt-4"
         nextButtonProps={(step: number) => ({
           disabled: (step === 1 && !isEmailValid(email)) || 
                    (step === 2 && !isOtpValid(otp)) || 
                    (step === 3 && !isPasswordValid())
         })}
-        backButtonProps={{}}
       >
         <Step>
           <div className="text-center mb-8">
             <Mail className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-white mb-2 font-['Archiv_Grotesk']">Forgot Password</h2>
-            <p className="text-gray-300 font-['Archiv_Grotesk']">Enter your email address to receive an OTP.</p>
+            <h2 className="text-3xl font-bold text-white mb-2">Forgot Password</h2>
+            <p className="text-gray-300">Enter your email address to receive an OTP.</p>
           </div>
           <div className="space-y-4">
             <input
@@ -127,7 +109,7 @@ const ForgotPassword = () => {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200 font-['Archiv_Grotesk']"
+              className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200"
             />
           </div>
         </Step>
@@ -135,8 +117,8 @@ const ForgotPassword = () => {
         <Step>
           <div className="text-center mb-8">
             <KeyRound className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-white mb-2 font-['Archiv_Grotesk']">Verify OTP</h2>
-            <p className="text-gray-300 font-['Archiv_Grotesk']">Enter OTP which has been sent to your email</p>
+            <h2 className="text-3xl font-bold text-white mb-2">Verify OTP</h2>
+            <p className="text-gray-300">Enter OTP which has been sent to your email</p>
           </div>
           <div className="space-y-4">
             <div className="flex justify-center gap-3">
@@ -151,7 +133,7 @@ const ForgotPassword = () => {
                   onChange={(e) => handleOtpChange(e.target.value, index)}
                   onKeyDown={(e) => handleOtpKeyDown(e, index)}
                   onPaste={index === 0 ? handleOtpPaste : undefined}
-                  className="w-14 h-14 text-center text-xl font-bold bg-white/10 border-2 border-white/30 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all duration-200 font-['Archiv_Grotesk']"
+                  className="w-14 h-14 text-center text-xl font-bold bg-white/10 border-2 border-white/30 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all duration-200"
                   placeholder="•"
                 />
               ))}
@@ -162,8 +144,8 @@ const ForgotPassword = () => {
         <Step>
           <div className="text-center mb-8">
             <Lock className="w-16 h-16 text-cyan-400 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-white mb-2 font-['Archiv_Grotesk']">Reset Password</h2>
-            <p className="text-gray-300 font-['Archiv_Grotesk']">Enter your new password and confirm it.</p>
+            <h2 className="text-3xl font-bold text-white mb-2">Reset Password</h2>
+            <p className="text-gray-300">Enter your new password and confirm it.</p>
           </div>
           <div className="space-y-4">
             <input
@@ -171,14 +153,14 @@ const ForgotPassword = () => {
               placeholder="New Password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200 font-['Archiv_Grotesk']"
+              className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200"
             />
             <input
               type="password"
               placeholder="Confirm Password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200 font-['Archiv_Grotesk']"
+              className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200"
             />
           </div>
         </Step>
