@@ -63,6 +63,34 @@ const ForgotPassword = () => {
     }
   };
 
+  // Handle keyboard navigation for stepper
+  const handleKeyDown = (e: React.KeyboardEvent, step: number) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      
+      // Check if current step is valid before proceeding
+      if (step === 1 && isEmailValid(email)) {
+        // Trigger next step
+        const nextButton = document.querySelector('[data-step="next"]') as HTMLButtonElement;
+        if (nextButton && !nextButton.disabled) {
+          nextButton.click();
+        }
+      } else if (step === 2 && isOtpValid(otp)) {
+        // Trigger next step
+        const nextButton = document.querySelector('[data-step="next"]') as HTMLButtonElement;
+        if (nextButton && !nextButton.disabled) {
+          nextButton.click();
+        }
+      } else if (step === 3 && isPasswordValid()) {
+        // Trigger complete
+        const completeButton = document.querySelector('[data-step="complete"]') as HTMLButtonElement;
+        if (completeButton && !completeButton.disabled) {
+          completeButton.click();
+        }
+      }
+    }
+  };
+
   const handleComplete = () => {
     router.push('/auth');
   };
@@ -109,6 +137,7 @@ const ForgotPassword = () => {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => handleKeyDown(e, 1)}
               className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200"
             />
           </div>
@@ -125,7 +154,9 @@ const ForgotPassword = () => {
               {[0, 1, 2, 3, 4, 5].map((index) => (
                 <input
                   key={index}
-                  ref={(el) => (otpInputRefs.current[index] = el)}
+                  ref={(el) => {
+                    otpInputRefs.current[index] = el;
+                  }}
                   type="text"
                   inputMode="numeric"
                   maxLength={1}
@@ -153,6 +184,7 @@ const ForgotPassword = () => {
               placeholder="New Password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
+              onKeyDown={(e) => handleKeyDown(e, 3)}
               className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200"
             />
             <input
@@ -160,6 +192,7 @@ const ForgotPassword = () => {
               placeholder="Confirm Password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              onKeyDown={(e) => handleKeyDown(e, 3)}
               className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200"
             />
           </div>

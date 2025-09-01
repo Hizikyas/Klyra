@@ -16,6 +16,7 @@ const Authentication = () => {
   const { inputHandler: emailHandler, inputBlurHandler: emailBlurHandler, enteredValue: email, enteredValid: emailIsValid, inValid: emailIsInvalid, reset: resetEmail } = useInput((value) => value.includes("@"));
   const { inputHandler: passwordHandler, inputBlurHandler: passwordBlurHandler, enteredValue: password, enteredValid: passwordIsValid, inValid: passwordIsInvalid, reset: resetPassword } = useInput((value) => value.length >= 5);
   const { inputHandler: confirmPasswordHandler, inputBlurHandler: confirmPasswordBlurHandler, enteredValue: confirmPassword, enteredValid: confirmPasswordIsValid, inValid: confirmPasswordIsInvalid, reset: resetConfirmPassword } = useInput((value) => value === password);
+  const { inputHandler: phoneHandler, inputBlurHandler: phoneBlurHandler, enteredValue: phone, enteredValid: phoneIsValid, inValid: phoneIsInvalid, reset: resetPhone } = useInput((value) => /^\+?[\d\s\-\(\)]{10,}$/.test(value.trim()));
 
   const togglePassword = () => {
     setShowPassword((prev) => !prev);
@@ -29,6 +30,7 @@ const Authentication = () => {
       fullNameIsValid &&
       usernameIsValid &&
       emailIsValid &&
+      phoneIsValid &&
       passwordIsValid &&
       confirmPasswordIsValid;
   }
@@ -42,13 +44,14 @@ const Authentication = () => {
 
     const userData = isLogin
       ? { username, password }
-      : { fullName, username, email, password };
+      : { fullName, username, email, phone, password };
 
     console.log("Form submitted:", userData);
 
     resetFullName();
     resetUsername();
     resetEmail();
+    resetPhone();
     resetPassword();
     resetConfirmPassword();
 
@@ -91,8 +94,8 @@ const Authentication = () => {
           }`}
         >
           <div className="h-full flex flex-col items-center justify-center px-10">
-            <h1 className="text-2xl font-bold mb-3 font-['Archiv_Grotesk'] text-white">
-              {isLogin ? "Login" : "Sign Up"}
+            <h1 className="text-2xl font-bold mb-3 font-['Archiv_Grotesk'] text-white mb-[2rem]">
+              {isLogin ? "Login" : "Fill personal details to sign up"}
             </h1>
 
             <form onSubmit={submitHandler} className="w-full">
@@ -105,7 +108,7 @@ const Authentication = () => {
                     onChange={fullNameHandler}
                     onBlur={fullNameBlurHandler}
                     value={fullName}
-                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] ${
+                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] transition-all duration-300 ${
                       fullNameIsInvalid
                         ? "border-red-400"
                         : "border-white/30"
@@ -122,11 +125,11 @@ const Authentication = () => {
                   onChange={usernameHandler}
                   onBlur={usernameBlurHandler}
                   value={username}
-                  className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] ${
-                    usernameIsInvalid
-                      ? "border-red-400"
-                      : "border-white/30"
-                  }`}
+                                      className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] transition-all duration-300 ${
+                      usernameIsInvalid
+                        ? "border-red-400"
+                        : "border-white/30"
+                    }`}
                 />
               </div>
 
@@ -139,11 +142,29 @@ const Authentication = () => {
                     onChange={emailHandler}
                     onBlur={emailBlurHandler}
                     value={email}
-                                      className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] ${
-                    emailIsInvalid
-                      ? "border-red-400"
-                      : "border-white/30"
-                  }`}
+                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] transition-all duration-300 ${
+                      emailIsInvalid
+                        ? "border-red-400"
+                        : "border-white/30"
+                    }`}
+                  />
+                </div>
+              )}
+
+              {!isLogin && (
+                <div className="relative w-full mb-4">
+                  <input
+                    id="phone"
+                    type="tel"
+                    placeholder="Phone Number"
+                    onChange={phoneHandler}
+                    onBlur={phoneBlurHandler}
+                    value={phone}
+                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] transition-all duration-300 ${
+                      phoneIsInvalid
+                        ? "border-red-400"
+                        : "border-white/30"
+                    }`}
                   />
                 </div>
               )}
@@ -153,11 +174,11 @@ const Authentication = () => {
                   <input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Password"
+                    placeholder="Password (Minimum 5 characters)"
                     onChange={passwordHandler}
                     onBlur={passwordBlurHandler}
                     value={password}
-                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 pr-12 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] ${
+                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 pr-12 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] transition-all duration-300 ${
                       passwordIsInvalid
                         ? "border-red-400"
                         : "border-white/30"
@@ -185,14 +206,14 @@ const Authentication = () => {
                     onChange={confirmPasswordHandler}
                     onBlur={confirmPasswordBlurHandler}
                     value={confirmPassword}
-                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] ${
+                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] transition-all duration-300 ${
                       confirmPasswordIsInvalid
                         ? "border-red-400"
                         : "border-white/30"
                     }`}
                   />
                   {confirmPasswordIsInvalid && (
-                    <p className="text-[0.6rem] font-['Archiv_Grotesk'] font-light text-red-400 pl-4 mt-1">
+                    <p className="text-[0.6rem] font-['Archiv_Grotesk'] font-light text-red-300 pl-4 mt-1">
                       Passwords did not match
                     </p>
                   )}
@@ -240,8 +261,8 @@ const Authentication = () => {
         <div
           className={`absolute top-0 h-full w-1/2 transition-all duration-1000 ease-in-out ${
             isLogin
-              ? "left-1/2 bg-[#020817]/50   rounded-l-[7rem]"
-              : "left-0 bg-[#020817]/50  rounded-r-[7rem]"
+              ? "left-1/2 bg-[#020817]/90   rounded-l-[7rem]"
+              : "left-0 bg-[#020817]/90  rounded-r-[7rem]"
           }`}
         >
           <div className="h-full flex flex-col items-center justify-center px-10 gap-[5rem] text-white">

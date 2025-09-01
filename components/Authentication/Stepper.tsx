@@ -83,6 +83,7 @@ export default function Stepper({
         {currentStep !== 1 && (
           <button
             onClick={handleBack}
+            data-step="back"
             className="bg-transparent text-white hover:text-cyan-400 transition-colors duration-200 px-4 py-2 rounded-full hover:bg-white/10"
             {...backButtonProps}
           >
@@ -91,6 +92,7 @@ export default function Stepper({
         )}
         <button
           onClick={handleNext}
+          data-step={isLastStep ? "complete" : "next"}
           disabled={nextButtonPropsValue.disabled}
           className={`font-semibold px-6 py-2 rounded-full transition-all duration-200 ${
             nextButtonPropsValue.disabled 
