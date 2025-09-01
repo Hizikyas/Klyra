@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import useInput from "./useInput";
-import GradientText from "./GradientText";
+import Image from "next/image";
 
 const Authentication = () => {
   const [isLogin, setIsLogin] = useState(false); // Default to sign up
@@ -58,43 +58,32 @@ const Authentication = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute inset-0" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }} />
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+      {/* Blue-Black Circular Gradient Background - Same as Features */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Large blue-black circular gradient */}
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] bg-gradient-to-r from-blue-900/30 via-blue-800/25 to-black/20 rounded-full blur-3xl" />
+        
+        {/* Additional smaller blue-black gradients */}
+        <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-gradient-to-r from-blue-800/25 to-black/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-gradient-to-r from-blue-700/20 to-black/15 rounded-full blur-3xl" />
+        
+        {/* Subtle accent gradients */}
+        <div className="absolute top-1/3 right-1/3 w-[400px] h-[400px] bg-gradient-to-r from-blue-600/15 to-indigo-800/15 rounded-full blur-3xl" />
       </div>
 
-      {/* Go Back Button */}
-      <span className="absolute top-[1rem] right-[1rem] z-10">
+      {/* Go Back Button - Above the card, centered */}
+      <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-20">
         <button 
           onClick={() => router.push("/")} 
-          className="bg-white text-center w-48 rounded-2xl h-14 relative text-black text-xl font-semibold group" 
-          type="button"
+          className="flex items-center gap-2 text-white hover:text-blue-400 transition-colors duration-200 font-['Archiv_Grotesk'] text-sm font-medium bg-black/20 backdrop-blur-sm px-4 py-2 rounded-full"
         >
-          <div className="bg-blue-900 rounded-xl h-12 w-1/4 flex items-center justify-center absolute left-1 top-[4px] group-hover:w-[184px] z-10 duration-500">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 1024 1024"
-              height="25px"
-              width="25px"
-            >
-              <path
-                d="M224 480h640a32 32 0 1 1 0 64H224a32 32 0 0 1 0-64z"
-                fill="#FFFFFF"
-              ></path>
-              <path
-                d="m237.248 512 265.408 265.344a32 32 0 0 1-45.312 45.312l-288-288a32 32 0 0 1 0-45.312l288-288a32 32 0 1 1 45.312 45.312L237.248 512z"
-                fill="#FFFFFF"
-              ></path>
-            </svg>
-          </div>
-          <p className="translate-x-2">Go Back</p>
+          <ArrowLeft className="w-4 h-4" />
+          Go Back
         </button>
-      </span>
+      </div>
 
-      <div className="bg-gray-100 rounded-3xl shadow-lg overflow-hidden w-full max-w-4xl min-h-[480px] relative">
+      <div className="bg-white/10 backdrop-blur-md rounded-3xl shadow-lg overflow-hidden w-full max-w-4xl min-h-[520px] relative border border-white/20">
         
         <div
           className={`absolute top-0 h-full transition-all duration-1000 ease-in-out ${
@@ -102,161 +91,108 @@ const Authentication = () => {
           }`}
         >
           <div className="h-full flex flex-col items-center justify-center px-10">
-            <h1 className="text-2xl font-bold mb-3 font-['Archiv_Grotesk']">
+            <h1 className="text-2xl font-bold mb-3 font-['Archiv_Grotesk'] text-white">
               {isLogin ? "Login" : "Sign Up"}
             </h1>
 
             <form onSubmit={submitHandler} className="w-full">
               {!isLogin && (
-                <div className="relative w-full">
-                  <div className="input flex flex-col">
-                    <label
-                      htmlFor="fullName"
-                      className="text-gray-700 font-['Archiv_Grotesk'] text-xs relative top-2 left-4 ml-[7px] px-[3px] bg-gray-100 w-fit"
-                    >
-                      Full Name :
-                    </label>
-                    <input
-                      id="fullName"
-                      type="text"
-                      onChange={fullNameHandler}
-                      onBlur={fullNameBlurHandler}
-                      value={fullName}
-                      className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-gray-700 placeholder-gray-500 focus:outline-none font-['Archiv_Grotesk'] ${
-                        fullNameIsInvalid
-                          ? "bg-red-600/30 border-red-600"
-                          : "border-gray-300"
-                      }`}
-                    />
-                  </div>
-                  {fullNameIsInvalid && (
-                    <p className="text-[0.5rem] font-['Archiv_Grotesk'] font-light text-red-600 pl-4">
-                      Full Name must not be empty
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <div className="relative w-full">
-                <div className="input flex flex-col static">
-                  <label
-                    htmlFor="username"
-                    className="text-gray-700 font-['Archiv_Grotesk'] text-xs relative top-2 left-4 ml-[7px] px-[3px] bg-gray-100 w-fit"
-                  >
-                    Username :
-                  </label>
+                <div className="relative w-full mb-4">
                   <input
-                    id="username"
+                    id="fullName"
                     type="text"
-                    onChange={usernameHandler}
-                    onBlur={usernameBlurHandler}
-                    value={username}
-                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-gray-700 placeholder-gray-500 focus:outline-none font-['Archiv_Grotesk'] ${
-                      usernameIsInvalid
-                        ? "bg-red-600/30 border-red-600"
-                        : "border-gray-300"
+                    placeholder="Full Name"
+                    onChange={fullNameHandler}
+                    onBlur={fullNameBlurHandler}
+                    value={fullName}
+                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] ${
+                      fullNameIsInvalid
+                        ? "border-red-400"
+                        : "border-white/30"
                     }`}
                   />
                 </div>
-                {usernameIsInvalid && (
-                  <p className="text-[0.5rem] font-['Archiv_Grotesk'] font-light text-red-600 pl-4">
-                    Username must not be empty
-                  </p>
-                )}
+              )}
+
+              <div className="relative w-full mb-4">
+                <input
+                  id="username"
+                  type="text"
+                  placeholder="Username"
+                  onChange={usernameHandler}
+                  onBlur={usernameBlurHandler}
+                  value={username}
+                  className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] ${
+                    usernameIsInvalid
+                      ? "border-red-400"
+                      : "border-white/30"
+                  }`}
+                />
               </div>
 
               {!isLogin && (
-                <div className="relative w-full">
-                  <div className="input flex flex-col">
-                    <label
-                      htmlFor="email"
-                      className="text-gray-700 font-['Archiv_Grotesk'] text-xs relative top-2 left-4 ml-[7px] px-[3px] bg-gray-100 w-fit"
-                    >
-                      Email :
-                    </label>
-                    <input
-                      id="email"
-                      type="email"
-                      onChange={emailHandler}
-                      onBlur={emailBlurHandler}
-                      value={email}
-                      className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-gray-700 placeholder-gray-500 focus:outline-none font-['Archiv_Grotesk'] ${
-                        emailIsInvalid
-                          ? "bg-red-600/30 border-red-600"
-                          : "border-gray-300"
-                      }`}
-                    />
-                  </div>
-                  {emailIsInvalid && (
-                    <p className="text-[0.5rem] font-['Archiv_Grotesk'] font-light text-red-600 pl-4">
-                      Email must contain '@' character
-                    </p>
-                  )}
+                <div className="relative w-full mb-4">
+                  <input
+                    id="email"
+                    type="email"
+                    placeholder="Email"
+                    onChange={emailHandler}
+                    onBlur={emailBlurHandler}
+                    value={email}
+                                      className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] ${
+                    emailIsInvalid
+                      ? "border-red-400"
+                      : "border-white/30"
+                  }`}
+                  />
                 </div>
               )}
 
-              <div className="relative w-full">
-                <div className="input flex flex-col static">
-                  <label
-                    htmlFor="password"
-                    className="text-gray-700 font-['Archiv_Grotesk'] text-xs relative top-2 left-4 ml-[7px] px-[3px] bg-gray-100 w-fit"
-                  >
-                    Password :
-                  </label>
+              <div className="relative w-full mb-4">
+                <div className="relative">
                   <input
                     id="password"
                     type={showPassword ? "text" : "password"}
+                    placeholder="Password"
                     onChange={passwordHandler}
                     onBlur={passwordBlurHandler}
                     value={password}
-                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-gray-700 placeholder-gray-500 focus:outline-none font-['Archiv_Grotesk'] ${
+                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 pr-12 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] ${
                       passwordIsInvalid
-                        ? "bg-red-600/30 border-red-600"
-                        : "border-gray-300"
+                        ? "border-red-400"
+                        : "border-white/30"
                     }`}
                   />
                   <div
                     onClick={togglePassword}
-                    className="absolute right-4 top-1/2 transform -translate-y-[10px] cursor-pointer"
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 cursor-pointer"
                   >
                     {showPassword ? (
-                      <EyeOff className="w-5 h-5" />
+                      <EyeOff className="w-5 h-5 text-gray-400" />
                     ) : (
-                      <Eye className="w-5 h-5" />
+                      <Eye className="w-5 h-5 text-gray-400" />
                     )}
                   </div>
                 </div>
-                {passwordIsInvalid && (
-                  <p className="text-[0.5rem] font-['Archiv_Grotesk'] font-light text-red-600 pl-4">
-                    Password must contain at least 5 characters
-                  </p>
-                )}
               </div>
 
               {!isLogin && (
-                <div className="relative w-full">
-                  <div className="input flex flex-col static">
-                    <label
-                      htmlFor="confirmPassword"
-                      className="text-gray-700 font-['Archiv_Grotesk'] text-xs relative top-2 left-4 ml-[7px] px-[3px] bg-gray-100 w-fit"
-                    >
-                      Confirm Password :
-                    </label>
-                    <input
-                      id="confirmPassword"
-                      type="password"
-                      onChange={confirmPasswordHandler}
-                      onBlur={confirmPasswordBlurHandler}
-                      value={confirmPassword}
-                      className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-gray-700 placeholder-gray-500 focus:outline-none font-['Archiv_Grotesk'] ${
-                        confirmPasswordIsInvalid
-                          ? "bg-red-600/30 border-red-600"
-                          : "border-gray-300"
-                      }`}
-                    />
-                  </div>
+                <div className="relative w-full mb-4">
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="Confirm Password"
+                    onChange={confirmPasswordHandler}
+                    onBlur={confirmPasswordBlurHandler}
+                    value={confirmPassword}
+                    className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] ${
+                      confirmPasswordIsInvalid
+                        ? "border-red-400"
+                        : "border-white/30"
+                    }`}
+                  />
                   {confirmPasswordIsInvalid && (
-                    <p className="text-[0.5rem] font-['Archiv_Grotesk'] font-light text-red-600 pl-4">
+                    <p className="text-[0.6rem] font-['Archiv_Grotesk'] font-light text-red-400 pl-4 mt-1">
                       Passwords did not match
                     </p>
                   )}
@@ -267,9 +203,9 @@ const Authentication = () => {
                 {isLogin ? (
                   <button
                     disabled={!formValidity}
-                    className={`w-1/2 h-10 rounded-full font-semibold mt-[3rem] font-['Archiv_Grotesk'] ${
+                    className={`w-1/2 h-10 rounded-full font-semibold mt-[3rem] font-['Archiv_Grotesk'] transition-all duration-200 ${
                       formValidity
-                        ? "bg-gradient-to-r from-blue-900 to-purple-900 text-white cursor-pointer"
+                        ? "bg-gradient-to-r from-blue-900 to-purple-900 text-white cursor-pointer hover:shadow-lg hover:shadow-blue-500/25"
                         : "bg-gray-300 text-gray-500 cursor-not-allowed"
                     }`}
                   >
@@ -278,9 +214,9 @@ const Authentication = () => {
                 ) : (
                   <button
                     disabled={!formValidity}
-                    className={`w-1/2 h-10 rounded-full font-semibold mt-[1rem] font-['Archiv_Grotesk'] ${
+                    className={`w-1/2 h-10 rounded-full font-semibold mt-[1rem] font-['Archiv_Grotesk'] transition-all duration-200 ${
                       formValidity
-                        ? "bg-gradient-to-r from-blue-900 to-purple-900 text-white cursor-pointer"
+                        ? "bg-gradient-to-r from-blue-900 to-purple-900 text-white cursor-pointer hover:shadow-lg hover:shadow-blue-500/25"
                         : "bg-gray-300 text-gray-500 cursor-not-allowed"
                     }`}
                   >
@@ -292,33 +228,35 @@ const Authentication = () => {
 
             <div className="text-center text-xs mt-1">
               {isLogin && (
-                <p className="font-['Archiv_Grotesk'] py-[10px] text-blue-600">
-                  <a href="/forgot-password" className="hover:underline">Forgot password?</a>
+                <p className="font-['Archiv_Grotesk'] py-[10px] text-blue-100 ">
+                  <a href="/forgot-password" className="hover:underline hover:text-blue-300">Forgot password?</a>
                 </p>
               )}
             </div>
           </div>
+          
         </div>
 
         <div
           className={`absolute top-0 h-full w-1/2 transition-all duration-1000 ease-in-out ${
             isLogin
-              ? "left-1/2 bg-gradient-to-br from-blue-900 via-purple-900 to-blue-900 rounded-l-[7rem]"
-              : "left-0 bg-gradient-to-br from-blue-900 via-purple-900 to-blue-900 rounded-r-[7rem]"
+              ? "left-1/2 bg-[#020817]/50   rounded-l-[7rem]"
+              : "left-0 bg-[#020817]/50  rounded-r-[7rem]"
           }`}
         >
           <div className="h-full flex flex-col items-center justify-center px-10 gap-[5rem] text-white">
             {isLogin ? (
               <h1 className="text-4xl font-['Archiv_Grotesk'] font-bold">Welcome Back</h1>
             ) : (
-              <GradientText
-                colors={["#00FF00", "#FFFFFF", "#FFFF00", "#FF0000"]}
-                animationSpeed={3}
-                showBorder={false}
-                className="text-6xl font-['Archiv_Grotesk'] font-bold"
-              >
-                Klyra
-              </GradientText>
+              <div className="flex items-center justify-center">
+                <Image
+                  src="/klyra_font.png"
+                  alt="Klyra Logo"
+                  width={200}
+                  height={80}
+                  className="object-contain"
+                />
+              </div>
             )}
 
             <div className="flex flex-col justify-center items-center gap-[1rem]">
@@ -330,17 +268,18 @@ const Authentication = () => {
 
               <button
                 onClick={() => setIsLogin((prev) => !prev)}
-                className="bg-transparent border-2 border-white rounded-full px-8 py-2 font-semibold font-['Archiv_Grotesk']"
+                className="bg-transparent border-2 border-white rounded-full px-8 py-2 font-semibold font-['Archiv_Grotesk'] hover:bg-white hover:text-blue-900 transition-all duration-200"
               >
                 {isLogin ? "Sign Up" : "Login"}
               </button>
             </div>
           </div>
         </div>
+
+        
       </div>
     </div>
   );
 };
 
 export default Authentication;
-

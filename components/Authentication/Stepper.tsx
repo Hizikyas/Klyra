@@ -85,10 +85,9 @@ export default function Stepper({
       {...rest}
     >
       <div
-        className={`mx-auto w-full max-w-md rounded-[1.5rem] shadow-xl ${stepCircleContainerClassName}`}
-        style={{ border: "1px solid blue" }}
+        className={`mx-auto w-full max-w-md rounded-3xl border border-white/20 p-6 ${stepCircleContainerClassName}`}
       >
-        <div className={`${stepContainerClassName} flex w-full items-center p-8`}>
+        <div className={`${stepContainerClassName} flex w-full items-center`}>
           {stepsArray.map((_, index) => {
             const stepNumber = index + 1;
             const isNotLastStep = index < totalSteps - 1;
@@ -125,30 +124,35 @@ export default function Stepper({
           isCompleted={isCompleted}
           currentStep={currentStep}
           direction={direction}
-          className={`space-y-2 px-8 ${contentClassName}`}
+          className={`space-y-2 ${contentClassName}`}
         >
           {stepsArray[currentStep - 1]}
         </StepContentWrapper>
         {!isCompleted && (
-          <div className={`px-8 pb-8 ${footerClassName}`}>
+          <div className={`${footerClassName}`}>
             <div
               className={`mt-10 flex ${currentStep !== 1 ? "justify-between" : "justify-end"
                 }`}
             >
               {currentStep !== 1 && (
                 <button
+                  type="button"
                   onClick={handleBack}
-                  className={`duration-350 rounded px-2 py-1 transition ${currentStep === 1
-                    ? "pointer-events-none opacity-50 text-neutral-400"
-                    : "text-neutral-400 hover:text-neutral-700"
-                    }`}
+                  className="bg-transparent text-white hover:text-cyan-400 transition-colors duration-200 font-['Archiv_Grotesk'] px-4 py-2 rounded-full hover:bg-white/10"
                   {...backButtonProps}
                 >
                   {backButtonText}
                 </button>
               )}
               <button
+                type="button"
                 onClick={isLastStep ? handleComplete : handleNext}
+                className={`font-semibold px-6 py-2 rounded-full transition-all duration-200 transform hover:scale-105 shadow-lg ${
+                  getNextButtonProps().disabled 
+                    ? 'bg-gray-500 cursor-not-allowed text-gray-300' 
+                    : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white hover:shadow-blue-500/25'
+                }`}
+                disabled={getNextButtonProps().disabled}
                 {...getNextButtonProps()}
               >
                 {isLastStep ? "Complete" : nextButtonText}
@@ -174,7 +178,7 @@ function StepContentWrapper({ isCompleted, currentStep, direction, children, cla
 
   return (
     <motion.div
-      style={{ position: "relative", overflow: "hidden" }}
+      style={{ position: "relative", overflow: "hidden", minHeight: '300px' }}
       animate={{ height: isCompleted ? 0 : parentHeight }}
       transition={{ type: "spring", duration: 0.4 }}
       className={className}
@@ -243,7 +247,7 @@ interface StepProps {
 }
 
 export function Step({ children }: StepProps) {
-  return <div className="px-8">{children}</div>;
+  return <div>{children}</div>;
 }
 
 interface StepIndicatorProps {

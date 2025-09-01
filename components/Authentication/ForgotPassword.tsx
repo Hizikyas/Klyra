@@ -1,7 +1,8 @@
+// app/forgot-password/page.tsx
 "use client";
 
-import { useState } from 'react';
-import { Mail, KeyRound, Lock } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Mail, KeyRound, Lock, ArrowLeft } from 'lucide-react';
 import Stepper, { Step } from "./Stepper";
 import { useRouter } from 'next/navigation';
 
@@ -10,8 +11,14 @@ const ForgotPassword = () => {
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const router = useRouter();
+
+  // Initialize OTP input refs
+  useEffect(() => {
+    otpInputRefs.current = otpInputRefs.current.slice(0, 6);
+  }, []);
 
   // Validation functions
   const isEmailValid = (email: string) => {
@@ -26,80 +33,87 @@ const ForgotPassword = () => {
     return newPassword.length >= 8 && newPassword === confirmPassword;
   };
 
-  // Handle form submissions
-  const handleEmailSubmit = () => {
-    if (isEmailValid(email)) {
-      // Here you would typically send the OTP to the email
-      console.log('Sending OTP to:', email);
+  // Handle OTP input change
+  const handleOtpChange = (value: string, index: number) => {
+    // Only allow digits
+    if (!/^\d*$/.test(value)) return;
+    
+    const newOtp = otp.split('');
+    newOtp[index] = value;
+    const newOtpStr = newOtp.join('');
+    setOtp(newOtpStr);
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
     }
   };
 
-  const handleOtpSubmit = () => {
-    if (isOtpValid(otp)) {
-      // Here you would typically verify the OTP
-      console.log('Verifying OTP:', otp);
+  // Handle OTP key down (for backspace)
+  const handleOtpKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
     }
   };
 
-  const handlePasswordReset = () => {
-    if (isPasswordValid()) {
-      // Here you would typically reset the password
-      console.log('Resetting password');
+  // Handle OTP paste
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text');
+    const pastedDigits = pastedData.replace(/\D/g, '').slice(0, 6);
+    
+    if (pastedDigits.length === 6) {
+      setOtp(pastedDigits);
+      // Focus the last input after paste
+      setTimeout(() => {
+        otpInputRefs.current[5]?.focus();
+      }, 0);
     }
+  };
+
+  const handleComplete = () => {
+    router.push('/auth');
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute inset-0" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }} />
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+      {/* Blue-Black Circular Gradient Background - Same as Authentication */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Large blue-black circular gradient */}
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[1200px] bg-gradient-to-r from-blue-900/30 via-blue-800/25 to-black/20 rounded-full blur-3xl" />
+        
+        {/* Additional smaller blue-black gradients */}
+        <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-gradient-to-r from-blue-800/25 to-black/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-gradient-to-r from-blue-700/20 to-black/15 rounded-full blur-3xl" />
+        
+        {/* Subtle accent gradients */}
+        <div className="absolute top-1/3 right-1/3 w-[400px] h-[400px] bg-gradient-to-r from-blue-600/15 to-indigo-800/15 rounded-full blur-3xl" />
       </div>
 
-      {/* Go Back Button */}
-      <span className="absolute top-[1rem] right-[1rem] z-10">
+      {/* Go Back Button - Above the card, centered */}
+      <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-20">
         <button 
           onClick={() => router.back()} 
-          className="bg-white text-center w-48 rounded-2xl h-14 relative text-black text-xl font-semibold group" 
-          type="button"
+          className="flex items-center gap-2 text-white hover:text-blue-400 transition-colors duration-200 font-['Archiv_Grotesk'] text-sm font-medium bg-black/20 backdrop-blur-sm px-4 py-2 rounded-full"
         >
-          <div className="bg-blue-900 rounded-xl h-12 w-1/4 flex items-center justify-center absolute left-1 top-[4px] group-hover:w-[184px] z-10 duration-500">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 1024 1024"
-              height="25px"
-              width="25px"
-            >
-              <path
-                d="M224 480h640a32 32 0 1 1 0 64H224a32 32 0 0 1 0-64z"
-                fill="#FFFFFF"
-              ></path>
-              <path
-                d="m237.248 512 265.408 265.344a32 32 0 0 1-45.312 45.312l-288-288a32 32 0 0 1 0-45.312l288-288a32 32 0 1 1 45.312 45.312L237.248 512z"
-                fill="#FFFFFF"
-              ></path>
-            </svg>
-          </div>
-          <p className="translate-x-2">Go Back</p>
+          <ArrowLeft className="w-4 h-4" />
+          Go Back
         </button>
-      </span>
+      </div>
 
       <Stepper
         initialStep={1}
+        onFinalStepCompleted={handleComplete}
+        stepCircleContainerClassName="p-0"
+        stepContainerClassName="p-6 pt-8"
+        contentClassName="p-8 pb-4"
+        footerClassName="p-8 pt-4"
         nextButtonProps={(step: number) => ({
-          disabled: 
-            (step === 1 && !isEmailValid(email)) ||
-            (step === 2 && !isOtpValid(otp)) ||
-            (step === 3 && !isPasswordValid()),
-          className: `duration-350 flex items-center justify-center rounded-full py-1.5 px-3.5 font-medium tracking-tight text-white transition transform hover:scale-[1.02] font-['Archiv_Grotesk'] ${
-            (step === 1 && !isEmailValid(email)) ||
-            (step === 2 && !isOtpValid(otp)) ||
-            (step === 3 && !isPasswordValid())
-              ? 'bg-gray-500 cursor-not-allowed'
-              : 'bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600'
-          }`
+          disabled: (step === 1 && !isEmailValid(email)) || 
+                   (step === 2 && !isOtpValid(otp)) || 
+                   (step === 3 && !isPasswordValid())
         })}
+        backButtonProps={{}}
       >
         <Step>
           <div className="text-center mb-8">
@@ -113,19 +127,8 @@ const ForgotPassword = () => {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 bg-white bg-opacity-20 rounded-lg border border-white border-opacity-30 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200 font-['Archiv_Grotesk']"
+              className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200 font-['Archiv_Grotesk']"
             />
-            <button
-              onClick={handleEmailSubmit}
-              disabled={!isEmailValid(email)}
-              className={`w-full py-3 rounded-lg font-semibold transition duration-200 transform hover:scale-[1.02] font-['Archiv_Grotesk'] ${
-                isEmailValid(email)
-                  ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-white hover:from-cyan-500 hover:to-blue-600'
-                  : 'bg-gray-500 cursor-not-allowed text-gray-300'
-              }`}
-            >
-              Send OTP
-            </button>
           </div>
         </Step>
 
@@ -136,24 +139,23 @@ const ForgotPassword = () => {
             <p className="text-gray-300 font-['Archiv_Grotesk']">Enter OTP which has been sent to your email</p>
           </div>
           <div className="space-y-4">
-            <input
-              type="text"
-              placeholder="Enter OTP"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value.slice(0, 6))}
-              className="w-full px-4 py-3 bg-white bg-opacity-20 rounded-lg border border-white border-opacity-30 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200 font-['Archiv_Grotesk']"
-            />
-            <button
-              onClick={handleOtpSubmit}
-              disabled={!isOtpValid(otp)}
-              className={`w-full py-3 rounded-lg font-semibold transition duration-200 transform hover:scale-[1.02] font-['Archiv_Grotesk'] ${
-                isOtpValid(otp)
-                  ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-white hover:from-cyan-500 hover:to-blue-600'
-                  : 'bg-gray-500 cursor-not-allowed text-gray-300'
-              }`}
-            >
-              Verify OTP
-            </button>
+            <div className="flex justify-center gap-3">
+              {[0, 1, 2, 3, 4, 5].map((index) => (
+                <input
+                  key={index}
+                  ref={(el) => (otpInputRefs.current[index] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={otp[index] || ''}
+                  onChange={(e) => handleOtpChange(e.target.value, index)}
+                  onKeyDown={(e) => handleOtpKeyDown(e, index)}
+                  onPaste={index === 0 ? handleOtpPaste : undefined}
+                  className="w-14 h-14 text-center text-xl font-bold bg-white/10 border-2 border-white/30 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 transition-all duration-200 font-['Archiv_Grotesk']"
+                  placeholder="•"
+                />
+              ))}
+            </div>
           </div>
         </Step>
 
@@ -169,26 +171,15 @@ const ForgotPassword = () => {
               placeholder="New Password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-white bg-opacity-20 rounded-lg border border-white border-opacity-30 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200 font-['Archiv_Grotesk']"
+              className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200 font-['Archiv_Grotesk']"
             />
             <input
               type="password"
               placeholder="Confirm Password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-white bg-opacity-20 rounded-lg border border-white border-opacity-30 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200 font-['Archiv_Grotesk']"
+              className="w-full px-4 py-3 bg-white/10 rounded-lg border border-white/30 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition duration-200 font-['Archiv_Grotesk']"
             />
-            <button
-              onClick={handlePasswordReset}
-              disabled={!isPasswordValid()}
-              className={`w-full py-3 rounded-lg font-semibold transition duration-200 transform hover:scale-[1.02] font-['Archiv_Grotesk'] ${
-                isPasswordValid()
-                  ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-white hover:from-cyan-500 hover:to-blue-600'
-                  : 'bg-gray-500 cursor-not-allowed text-gray-300'
-              }`}
-            >
-              Reset Password
-            </button>
           </div>
         </Step>
       </Stepper>
