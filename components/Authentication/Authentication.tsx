@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, Upload, X } from "lucide-react";
 import useInput from "./useInput";
 import Image from "next/image";
 
 const Authentication = () => {
-  const [isLogin, setIsLogin] = useState(false); // Default to sign up
+  const [isLogin, setIsLogin] = useState(true); 
   const [showPassword, setShowPassword] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const router = useRouter();
 
-  const { inputHandler: fullNameHandler, inputBlurHandler: fullNameBlurHandler, enteredValue: fullName, enteredValid: fullNameIsValid, inValid: fullNameIsInvalid, reset: resetFullName } = useInput((value) => value.trim() !== "");
+  const { inputHandler: fullNameHandler, inputBlurHandler: fullNameBlurHandler, enteredValue: fullname, enteredValid: fullNameIsValid, inValid: fullNameIsInvalid, reset: resetFullName } = useInput((value) => value.trim() !== "");
   const { inputHandler: usernameHandler, inputBlurHandler: usernameBlurHandler, enteredValue: username, enteredValid: usernameIsValid, inValid: usernameIsInvalid, reset: resetUsername } = useInput((value) => value.trim() !== "");
   const { inputHandler: emailHandler, inputBlurHandler: emailBlurHandler, enteredValue: email, enteredValid: emailIsValid, inValid: emailIsInvalid, reset: resetEmail } = useInput((value) => value.includes("@"));
   const { inputHandler: passwordHandler, inputBlurHandler: passwordBlurHandler, enteredValue: password, enteredValid: passwordIsValid, inValid: passwordIsInvalid, reset: resetPassword } = useInput((value) => value.length >= 5);
@@ -20,6 +22,23 @@ const Authentication = () => {
 
   const togglePassword = () => {
     setShowPassword((prev) => !prev);
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeAvatar = () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
   };
 
   let formValidity = false;
@@ -35,7 +54,7 @@ const Authentication = () => {
       confirmPasswordIsValid;
   }
 
-  const submitHandler = (e: React.FormEvent) => {
+  const LoginHundler = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formValidity) {
@@ -44,7 +63,7 @@ const Authentication = () => {
 
     const userData = isLogin
       ? { username, password }
-      : { fullName, username, email, phone, password };
+      : { fullname, username, email, phone, password, avatar: avatarFile };
 
     console.log("Form submitted:", userData);
 
@@ -54,6 +73,50 @@ const Authentication = () => {
     resetPhone();
     resetPassword();
     resetConfirmPassword();
+    setAvatarFile(null);
+    setAvatarPreview(null);
+
+    if (!isLogin) {
+      setIsLogin(true);
+    }
+  };
+
+  const SignupHandler = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!formValidity) {
+      return;
+    }
+
+    // const userData = { fullName, username, email, phone, password, avatar: avatarFile };
+    const userData = { fullname, username, email, phone, password, confirmPassword };
+
+    fetch("http://localhost:4000/v1/users/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(userData),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        console.log("Success:", data);
+        // Handle success (e.g., show a success message, redirect, etc.)
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+        // Handle error (e.g., show an error message)
+      });
+
+    resetFullName();
+    resetUsername();
+    resetEmail();
+    resetPhone();
+    resetPassword();
+    resetConfirmPassword();
+    setAvatarFile(null);
+    setAvatarPreview(null);
 
     if (!isLogin) {
       setIsLogin(true);
@@ -86,7 +149,7 @@ const Authentication = () => {
         </button>
       </div>
 
-      <div className="bg-white/10 backdrop-blur-md rounded-3xl shadow-lg overflow-hidden w-full max-w-4xl min-h-[520px] relative border border-white/20">
+      <div className="bg-white/10 backdrop-blur-md rounded-3xl shadow-lg overflow-hidden w-full max-w-4xl min-h-[580px] relative border border-white/20">
         
         <div
           className={`absolute top-0 h-full transition-all duration-1000 ease-in-out ${
@@ -98,16 +161,16 @@ const Authentication = () => {
               {isLogin ? "Login" : "Fill personal details to sign up"}
             </h1>
 
-            <form onSubmit={submitHandler} className="w-full">
+            <form  className="w-full">
               {!isLogin && (
                 <div className="relative w-full mb-4">
                   <input
-                    id="fullName"
+                    id="fullname"
                     type="text"
                     placeholder="Full Name"
                     onChange={fullNameHandler}
                     onBlur={fullNameBlurHandler}
-                    value={fullName}
+                    value={fullname}
                     className={`w-full h-10 bg-transparent border-2 rounded-full px-4 text-white placeholder-gray-400 focus:outline-none font-['Archiv_Grotesk'] transition-all duration-300 ${
                       fullNameIsInvalid
                         ? "border-red-400"
@@ -169,6 +232,48 @@ const Authentication = () => {
                 </div>
               )}
 
+              {!isLogin && (
+                <div className="relative w-full mb-4">
+                  <label className="block text-white text-sm font-['Archiv_Grotesk'] mb-2">
+                    Profile Picture (Optional)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <div className="relative flex-1">
+                      <input
+                        id="avatar"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="avatar"
+                        className="flex items-center justify-center gap-2 w-full h-10 bg-transparent border-2 border-white/30 rounded-full px-4 text-white cursor-pointer hover:border-white/50 transition-all duration-300 font-['Archiv_Grotesk']"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Choose Image
+                      </label>
+                    </div>
+                    {avatarPreview && (
+                      <div className="relative">
+                        <img
+                          src={avatarPreview}
+                          alt="Avatar preview"
+                          className="w-10 h-10 rounded-full object-cover border-2 border-white/30"
+                        />
+                        <button
+                          type="button"
+                          onClick={removeAvatar}
+                          className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-600 transition-colors duration-200"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="relative w-full mb-4">
                 <div className="relative">
                   <input
@@ -224,6 +329,7 @@ const Authentication = () => {
                 {isLogin ? (
                   <button
                     disabled={!formValidity}
+                    onClick = {LoginHundler}
                     className={`w-1/2 h-10 rounded-full font-semibold mt-[3rem] font-['Archiv_Grotesk'] transition-all duration-200 ${
                       formValidity
                         ? "bg-gradient-to-r from-blue-900 to-purple-900 text-white cursor-pointer hover:shadow-lg hover:shadow-blue-500/25"
@@ -235,6 +341,7 @@ const Authentication = () => {
                 ) : (
                   <button
                     disabled={!formValidity}
+                    onClick = {SignupHandler}
                     className={`w-1/2 h-10 rounded-full font-semibold mt-[1rem] font-['Archiv_Grotesk'] transition-all duration-200 ${
                       formValidity
                         ? "bg-gradient-to-r from-blue-900 to-purple-900 text-white cursor-pointer hover:shadow-lg hover:shadow-blue-500/25"

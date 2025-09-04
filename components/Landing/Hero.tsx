@@ -21,7 +21,7 @@ export default function Hero() {
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center [mask-image:radial-gradient(ellipse_at_center,transparent_70%,black)]" />
 
       {/* Animated Gradient Background */}
-      <div className="absolute inset-0 gradient-animation opacity-80" />
+      <div className="absolute inset-0 gradient-animation opacity-70" />
 
       {/* Hero Content */}
       <div className="relative z-10 flex flex-col items-center justify-center w-full max-w-6xl mx-auto px-6 text-center">
