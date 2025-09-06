@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowLeft, Upload, X } from "lucide-react";
 import useInput from "./useInput";
 import Image from "next/image";
+// import { signIn, signUp, useSession } from "../../lib/auth-client";
+
 
 const Authentication = () => {
   const [isLogin, setIsLogin] = useState(true); 
@@ -54,18 +56,33 @@ const Authentication = () => {
       confirmPasswordIsValid;
   }
 
-  const LoginHundler = (e: React.FormEvent) => {
+  const LoginHundler = async  (e: React.FormEvent) => {
     e.preventDefault();
-
+      try {
     if (!formValidity) {
       return;
     }
 
-    const userData = isLogin
-      ? { username, password }
-      : { fullname, username, email, phone, password, avatar: avatarFile };
+            const userData = { username, password };
 
-    console.log("Form submitted:", userData);
+            const response = await fetch("http://localhost:4000/v1/users/login", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              credentials: "include",
+              body: JSON.stringify(userData),
+            });
+
+            const data = await response.json();
+
+            if (data.status === "success") {
+              console.log("Login successful:", data);
+              router.push("/"); // Redirect to home page
+            } else {
+              console.error("Login failed:", data.message);
+              // You can add a toast notification or error state here instead of alert
+            }
 
     resetFullName();
     resetUsername();
@@ -76,38 +93,95 @@ const Authentication = () => {
     setAvatarFile(null);
     setAvatarPreview(null);
 
+
     if (!isLogin) {
       setIsLogin(true);
     }
+      } catch (error) {
+        console.error("Login error:", error);
+        // You can add a toast notification or error state here instead of alert
+      }
+    
   };
 
-  const SignupHandler = (e: React.FormEvent) => {
+  // const SignupHandler = (e: React.FormEvent) => {
+  //   e.preventDefault();
+
+  //   if (!formValidity) {
+  //     return;
+  //   }
+
+  //   // const userData = { fullName, username, email, phone, password, avatar: avatarFile };
+  //   const userData = { fullname, username, email, phone, password, confirmPassword };
+
+  //   fetch("http://localhost:4000/v1/users/signup", {
+  //     method: "POST",
+  //     headers: {
+  //       "Content-Type": "application/json",
+  //     },
+  //     credentials: "include",
+  //     body: JSON.stringify(userData),
+  //   })
+  //     .then((response) => response.json())
+  //     .then((data) => {
+  //       console.log("Success:", data);
+  //       // Handle success (e.g., show a success message, redirect, etc.)
+  //     })
+  //     .catch((error) => {
+  //       console.error("Error:", error);
+  //       // Handle error (e.g., show an error message)
+  //     });
+
+  //   resetFullName();
+  //   resetUsername();
+  //   resetEmail();
+  //   resetPhone();
+  //   resetPassword();
+  //   resetConfirmPassword();
+  //   setAvatarFile(null);
+  //   setAvatarPreview(null);
+
+  //   if (!isLogin) {
+  //     setIsLogin(true);
+  //   }
+  // };
+
+  const SignupHandler = async (e: React.FormEvent) => {
+  
     e.preventDefault();
 
+   try {
     if (!formValidity) {
       return;
     }
 
-    // const userData = { fullName, username, email, phone, password, avatar: avatarFile };
-    const userData = { fullname, username, email, phone, password, confirmPassword };
+      const userData = { 
+        fullname,
+        username,
+        email, 
+        phone,
+        password
+      };
 
-    fetch("http://localhost:4000/v1/users/signup", {
+      const response = await fetch("http://localhost:4000/v1/users/signup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       credentials: "include",
       body: JSON.stringify(userData),
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        console.log("Success:", data);
-        // Handle success (e.g., show a success message, redirect, etc.)
-      })
-      .catch((error) => {
-        console.error("Error:", error);
-        // Handle error (e.g., show an error message)
       });
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        console.log("Signup successful:", data);
+        // Show success message and switch to login form
+        setIsLogin(true); // Switch to login form
+      } else {
+        console.error("Signup failed:", data.message);
+        // You can add a toast notification or error state here instead of alert
+      }
 
     resetFullName();
     resetUsername();
@@ -120,6 +194,10 @@ const Authentication = () => {
 
     if (!isLogin) {
       setIsLogin(true);
+      } 
+     } catch (error) {
+      console.error("Signup error:", error);
+      // You can add a toast notification or error state here instead of alert
     }
   };
 
