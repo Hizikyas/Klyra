@@ -104,47 +104,7 @@ const Authentication = () => {
     
   };
 
-  // const SignupHandler = (e: React.FormEvent) => {
-  //   e.preventDefault();
 
-  //   if (!formValidity) {
-  //     return;
-  //   }
-
-  //   // const userData = { fullName, username, email, phone, password, avatar: avatarFile };
-  //   const userData = { fullname, username, email, phone, password, confirmPassword };
-
-  //   fetch("http://localhost:4000/v1/users/signup", {
-  //     method: "POST",
-  //     headers: {
-  //       "Content-Type": "application/json",
-  //     },
-  //     credentials: "include",
-  //     body: JSON.stringify(userData),
-  //   })
-  //     .then((response) => response.json())
-  //     .then((data) => {
-  //       console.log("Success:", data);
-  //       // Handle success (e.g., show a success message, redirect, etc.)
-  //     })
-  //     .catch((error) => {
-  //       console.error("Error:", error);
-  //       // Handle error (e.g., show an error message)
-  //     });
-
-  //   resetFullName();
-  //   resetUsername();
-  //   resetEmail();
-  //   resetPhone();
-  //   resetPassword();
-  //   resetConfirmPassword();
-  //   setAvatarFile(null);
-  //   setAvatarPreview(null);
-
-  //   if (!isLogin) {
-  //     setIsLogin(true);
-  //   }
-  // };
 
   const SignupHandler = async (e: React.FormEvent) => {
   
@@ -155,21 +115,22 @@ const Authentication = () => {
       return;
     }
 
-      const userData = { 
-        fullname,
-        username,
-        email, 
-        phone,
-        password
-      };
+      
+      const userData = new FormData();
+      userData.append('fullname', fullname);
+      userData.append('username', username);
+      userData.append('email', email);
+      userData.append('phone', phone);
+      userData.append('password', password);
+      
+      if (avatarFile) {
+        userData.append('avatar', avatarFile);
+      }
 
       const response = await fetch("http://localhost:4000/v1/users/signup", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
       credentials: "include",
-      body: JSON.stringify(userData),
+      body: userData,
       });
 
       const data = await response.json();
