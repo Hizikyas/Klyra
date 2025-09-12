@@ -4,24 +4,27 @@ import { Play, MessageCircle, Video, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export default function Hero() {
   const router = useRouter();
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const handleStartFreeTrial = () => {
+    setIsNavigating(true);
     router.push('/auth');
   };
 
   return (
-    <section id="home" className="relative min-h-screen flex items-center justify-center overflow-hidden">
+    <section id="home" className="relative pt-[12rem] min-h-[70vh] md:min-h-[80vh] flex items-center justify-center overflow-hidden">
       {/* Grid Background - Only in Hero */}
-      <div className="grid-background" />
+      <div className="grid-background opacity-60" />
 
       {/* Radial gradient for faded look */}
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center [mask-image:radial-gradient(ellipse_at_center,transparent_70%,black)]" />
+      {/* simplified to reduce heavy effects on first paint */}
 
       {/* Animated Gradient Background */}
-      <div className="absolute inset-0 gradient-animation opacity-70" />
+      <div className="absolute inset-0 gradient-animation opacity-30" />
 
       {/* Hero Content */}
       <div className="relative z-10 flex flex-col items-center justify-center w-full max-w-6xl mx-auto px-6 text-center">
@@ -57,9 +60,11 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.6 }}
           className="flex flex-col sm:flex-row gap-4 mb-16"
         >
-          <Button className="btn-primary group" onClick={handleStartFreeTrial}>
-            Start Free Trial
-            <Play className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform duration-200" />
+          <Button className="btn-primary group" onClick={handleStartFreeTrial} disabled={isNavigating}>
+            {isNavigating ? "Start Here..." : "Start Here"}
+            {!isNavigating && (
+              <Play className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform duration-200" />
+            )}
           </Button>
         </motion.div>
       </div>

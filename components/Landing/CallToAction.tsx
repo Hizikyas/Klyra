@@ -2,18 +2,21 @@ import { ArrowRight, Users, MessageCircle, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 const CallToAction = () => {
   const router = useRouter();
+  const [isNavigating, setIsNavigating] = useState(false);
 
   const handleJoinKlyra = () => {
+    setIsNavigating(true);
     router.push('/auth');
   };
 
   return (
     <section id="call-to-action" className="py-20 relative overflow-hidden">
       {/* Background Elements */}
-      <div className="absolute inset-0 gradient-animation opacity-20" />
+      <div className="absolute inset-0 gradient-animation opacity-10" />
       <div className="absolute inset-0 opacity-80" />
       
       <div className="container mx-auto px-6 relative z-10">
@@ -86,9 +89,11 @@ const CallToAction = () => {
             viewport={{ once: true }}
             className="flex flex-col sm:flex-row gap-4 justify-center mb-12"
           >
-            <Button className="btn-primary group text-lg px-8 py-4" onClick={handleJoinKlyra}>
-              Join Klyra Today
-              <ArrowRight className="w-6 h-6 ml-2 group-hover:translate-x-1 transition-transform duration-200" />
+            <Button className="btn-primary group text-lg px-8 py-4" onClick={handleJoinKlyra} disabled={isNavigating}>
+              {isNavigating ? 'Loading...' : 'Join Klyra Today'}
+              {!isNavigating && (
+                <ArrowRight className="w-6 h-6 ml-2 group-hover:translate-x-1 transition-transform duration-200" />
+              )}
             </Button>
           </motion.div>
           

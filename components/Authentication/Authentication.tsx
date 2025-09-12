@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowLeft, Upload, X } from "lucide-react";
 import useInput from "./useInput";
-import Image from "next/image";
-// import { signIn, signUp, useSession } from "../../lib/auth-client";
+import Image from "next/image";// import { signIn, signUp, useSession } from "../../lib/auth-client";
 
 
 const Authentication = () => {
@@ -13,6 +12,7 @@ const Authentication = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
   const router = useRouter();
 
   const { inputHandler: fullNameHandler, inputBlurHandler: fullNameBlurHandler, enteredValue: fullname, enteredValid: fullNameIsValid, inValid: fullNameIsInvalid, reset: resetFullName } = useInput((value) => value.trim() !== "");
@@ -65,6 +65,7 @@ const Authentication = () => {
 
             const userData = { username, password };
 
+            setIsAuthLoading(true);
             const response = await fetch("http://localhost:4000/v1/users/login", {
               method: "POST",
               headers: {
@@ -78,7 +79,7 @@ const Authentication = () => {
 
             if (data.status === "success") {
               console.log("Login successful:", data);
-              router.push("/"); // Redirect to home page
+              router.push("/main-dashboard"); // Redirect to home page
             } else {
               console.error("Login failed:", data.message);
               // You can add a toast notification or error state here instead of alert
@@ -100,6 +101,8 @@ const Authentication = () => {
       } catch (error) {
         console.error("Login error:", error);
         // You can add a toast notification or error state here instead of alert
+      } finally {
+        setIsAuthLoading(false);
       }
     
   };
@@ -127,6 +130,7 @@ const Authentication = () => {
         userData.append('avatar', avatarFile);
       }
 
+      setIsAuthLoading(true);
       const response = await fetch("http://localhost:4000/v1/users/signup", {
       method: "POST",
       credentials: "include",
@@ -159,6 +163,8 @@ const Authentication = () => {
      } catch (error) {
       console.error("Signup error:", error);
       // You can add a toast notification or error state here instead of alert
+    } finally {
+      setIsAuthLoading(false);
     }
   };
 
@@ -367,27 +373,27 @@ const Authentication = () => {
               <div className="text-center mt-2 mb-1">
                 {isLogin ? (
                   <button
-                    disabled={!formValidity}
+                    disabled={!formValidity || isAuthLoading}
                     onClick = {LoginHundler}
                     className={`w-1/2 h-10 rounded-full font-semibold mt-[3rem] font-['Archiv_Grotesk'] transition-all duration-200 ${
-                      formValidity
+                      formValidity && !isAuthLoading
                         ? "bg-gradient-to-r from-blue-900 to-purple-900 text-white cursor-pointer hover:shadow-lg hover:shadow-blue-500/25"
                         : "bg-gray-300 text-gray-500 cursor-not-allowed"
                     }`}
                   >
-                    Login
+                    {isAuthLoading ? "Logging in..." : "Login"}
                   </button>
                 ) : (
                   <button
-                    disabled={!formValidity}
+                    disabled={!formValidity || isAuthLoading}
                     onClick = {SignupHandler}
                     className={`w-1/2 h-10 rounded-full font-semibold mt-[1rem] font-['Archiv_Grotesk'] transition-all duration-200 ${
-                      formValidity
+                      formValidity && !isAuthLoading
                         ? "bg-gradient-to-r from-blue-900 to-purple-900 text-white cursor-pointer hover:shadow-lg hover:shadow-blue-500/25"
                         : "bg-gray-300 text-gray-500 cursor-not-allowed"
                     }`}
                   >
-                    Sign Up
+                    {isAuthLoading ? "Signing up..." : "Sign Up"}
                   </button>
                 )}
               </div>
