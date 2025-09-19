@@ -61,7 +61,7 @@ export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = 
 
   return (
     <div className="flex-1 flex">
-      <div className={cn("w-80 bg-slate-800/20 backdrop-blur-sm border-r border-slate-700/50", isMobile ? (selectedChat ? "hidden" : "w-full") : "w-80")}>
+      <div className={cn("w-80 bg-slate-800/20 backdrop-blur-sm border-r border-slate-700/50 relative z-10", isMobile ? (selectedChat ? "hidden" : "w-full") : "w-80")}>
         <div className="p-4 border-b border-slate-700/50">
           <h2 className="text-lg font-semibold text-white">Messages</h2>
         </div>

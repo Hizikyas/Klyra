@@ -78,7 +78,8 @@ const Authentication = () => {
             const data = await response.json();
 
             if (data.status === "success") {
-              console.log("Login successful:", data);
+              // console.log("Login successful:", data);
+              sessionStorage.setItem("currentUser", JSON.stringify(data.user));
               router.push("/main-dashboard"); // Redirect to home page
             } else {
               console.error("Login failed:", data.message);

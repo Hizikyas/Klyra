@@ -17,8 +17,10 @@ interface TopNavigationProps {
 }
 
 export function TopNavigation({ onMobileSidebarToggle }: TopNavigationProps) {
+  const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
+  console.log("TopNavigation currentUser:", currentUser) // Debug log
   return (
-    <header className="h-16 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 px-4 lg:px-6 flex items-center justify-between">
+    <header className="h-16 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 px-4 lg:px-6 flex items-center justify-between relative z-50">
       <div className="flex items-center space-x-4">
         <Button
           variant="ghost"
@@ -51,14 +53,25 @@ export function TopNavigation({ onMobileSidebarToggle }: TopNavigationProps) {
         <div className="relative">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+              
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src="/placeholder.svg?key=gw0b4" alt="User" />
-                  <AvatarFallback className="bg-purple-600 text-white">JD</AvatarFallback>
+                  {currentUser?.avatar && currentUser?.avatar.trim() !== "" ? (
+                    <AvatarImage
+                      src={currentUser.avatar}
+                      alt={currentUser?.fullname || currentUser?.username || "User"}
+                    />
+                  ) : (
+                    <AvatarFallback className="bg-purple-600 text-white">
+                    {currentUser?.username?.charAt(0) ||
+                      currentUser?.fullname?.charAt(0) ||
+                      "U"}
+                  </AvatarFallback>
+                  )}
+                  
                 </Avatar>
-              </Button>
+              
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56 bg-slate-800 border-slate-700" align="end">
+            <DropdownMenuContent className="w-56 bg-slate-800 border-slate-700 z-[60]" align="end">
               <DropdownMenuItem className="text-slate-300 hover:text-white hover:bg-slate-700">
                 <Settings className="mr-2 h-4 w-4" />
                 Settings

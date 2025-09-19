@@ -12,6 +12,7 @@ interface LeftSidebarProps {
 }
 
 export function LeftSidebar({ activeTab, onTabChange }: LeftSidebarProps) {
+  const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
   const [collapsed, setCollapsed] = useState(true)
   const [isHovered, setIsHovered] = useState(false)
   const tabs = [
@@ -32,15 +33,20 @@ export function LeftSidebar({ activeTab, onTabChange }: LeftSidebarProps) {
       <div className="p-6 border-b border-slate-700/50">
         <div className={cn("flex items-center", showLabels ? "space-x-3" : "justify-center")}> 
           <div className="relative">
-            <Avatar className={cn("h-12 w-12", !showLabels && "h-10 w-10")}> 
-              <AvatarImage src="/placeholder.svg?key=gw0b4" alt="John Doe" />
-              <AvatarFallback className="bg-purple-600 text-white text-lg">JD</AvatarFallback>
-            </Avatar>
+             <Avatar className={cn("h-12 w-12", !showLabels && "h-10 w-10")}>
+               {currentUser?.avatar ? (
+                 <AvatarImage src={currentUser?.avatar} alt={currentUser?.fullname || 'User'} />
+               ) : (
+                 <AvatarFallback className="bg-purple-600 text-white text-lg">
+                   {currentUser?.username?.charAt(0) || currentUser?.fullname?.charAt(0) || 'U'}
+                 </AvatarFallback>
+               )}
+             </Avatar>
             <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-800"></div>
           </div>
           {showLabels && (
             <div className="flex-1">
-              <h3 className="text-white font-semibold">John Doe</h3>
+              <h3 className="text-white font-semibold">{currentUser?.username}</h3>
               <div className="flex items-center space-x-1 text-sm text-green-400">
                 <Circle className="h-2 w-2 fill-current" />
                 <span>Online</span>
