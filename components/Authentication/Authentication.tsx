@@ -1,11 +1,56 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, ArrowLeft, Upload, X } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, Upload, X , Crop } from "lucide-react";
 import useInput from "./useInput";
-import Image from "next/image";// import { signIn, signUp, useSession } from "../../lib/auth-client";
+import Image from "next/image";
+import ReactCrop, { Crop as CropType, PixelCrop, centerCrop, makeAspectCrop } from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
 
+function canvasPreview(
+  image: HTMLImageElement,
+  canvas: HTMLCanvasElement,
+  crop: PixelCrop
+) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const scaleX = image.naturalWidth / image.width;
+  const scaleY = image.naturalHeight / image.height;
+  const pixelRatio = window.devicePixelRatio;
+
+  canvas.width = Math.floor(crop.width * scaleX * pixelRatio);
+  canvas.height = Math.floor(crop.height * scaleY * pixelRatio);
+
+  ctx.scale(pixelRatio, pixelRatio);
+  ctx.imageSmoothingQuality = "high";
+
+  const cropX = crop.x * scaleX;
+  const cropY = crop.y * scaleY;
+
+  const centerX = image.naturalWidth / 2;
+  const centerY = image.naturalHeight / 2;
+
+  ctx.save();
+
+  // Move the crop origin to the canvas origin (0,0)
+  ctx.translate(-cropX, -cropY);
+  // Draw the image
+  ctx.drawImage(
+    image,
+    0,
+    0,
+    image.naturalWidth,
+    image.naturalHeight,
+    0,
+    0,
+    image.naturalWidth,
+    image.naturalHeight
+  );
+
+  ctx.restore();
+}
 
 const Authentication = () => {
   const [isLogin, setIsLogin] = useState(true); 
@@ -13,6 +58,13 @@ const Authentication = () => {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [imgSrc, setImgSrc] = useState<string>("");
+  const [crop, setCrop] = useState<CropType>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const router = useRouter();
 
   const { inputHandler: fullNameHandler, inputBlurHandler: fullNameBlurHandler, enteredValue: fullname, enteredValid: fullNameIsValid, inValid: fullNameIsInvalid, reset: resetFullName } = useInput((value) => value.trim() !== "");
@@ -22,6 +74,11 @@ const Authentication = () => {
   const { inputHandler: confirmPasswordHandler, inputBlurHandler: confirmPasswordBlurHandler, enteredValue: confirmPassword, enteredValid: confirmPasswordIsValid, inValid: confirmPasswordIsInvalid, reset: resetConfirmPassword } = useInput((value) => value === password);
   const { inputHandler: phoneHandler, inputBlurHandler: phoneBlurHandler, enteredValue: phone, enteredValid: phoneIsValid, inValid: phoneIsInvalid, reset: resetPhone } = useInput((value) => /^\+?[\d\s\-\(\)]{10,}$/.test(value.trim()));
 
+  // Form validity check
+  const formValidity = isLogin 
+    ? usernameIsValid && passwordIsValid
+    : fullNameIsValid && usernameIsValid && emailIsValid && phoneIsValid && passwordIsValid && confirmPasswordIsValid;
+
   const togglePassword = () => {
     setShowPassword((prev) => !prev);
   };
@@ -29,86 +86,114 @@ const Authentication = () => {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setAvatarFile(file);
       const reader = new FileReader();
-      reader.onload = () => {
-        setAvatarPreview(reader.result as string);
-      };
+      reader.addEventListener("load", () => {
+        setImgSrc(reader.result?.toString() || "");
+        setShowCropModal(true);
+      });
       reader.readAsDataURL(file);
     }
   };
 
+    function onImageLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+    const { width, height } = e.currentTarget;
+    const crop = centerCrop(
+      makeAspectCrop(
+        {
+          unit: "%",
+          width: 90,
+        },
+        1, // Aspect ratio 1:1 for square crop
+        width,
+        height
+      ),
+      width,
+      height
+    );
+    setCrop(crop);
+  }
+
+  async function onCropComplete() {
+    if (imgRef.current && previewCanvasRef.current && completedCrop) {
+      canvasPreview(imgRef.current, previewCanvasRef.current, completedCrop);
+      // Convert canvas to blob and then to file
+      previewCanvasRef.current.toBlob((blob) => {
+        if (!blob) return;
+        const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+        setAvatarFile(file);
+        // Create preview URL
+        const reader = new FileReader();
+        reader.onload = () => {
+          setAvatarPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+        setShowCropModal(false);
+        // Reset all crop-related states
+        setImgSrc("");
+        setCrop(undefined);
+        setCompletedCrop(undefined);
+        // Reset file input so user can select the same file again
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }, "image/jpeg", 0.95);
+    }
+  }
+
   const removeAvatar = () => {
     setAvatarFile(null);
     setAvatarPreview(null);
+    setImgSrc("");
+    setCrop(undefined);
+    setCompletedCrop(undefined);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  let formValidity = false;
-  if (isLogin) {
-    formValidity = usernameIsValid && passwordIsValid;
-  } else {
-    formValidity =
-      fullNameIsValid &&
-      usernameIsValid &&
-      emailIsValid &&
-      phoneIsValid &&
-      passwordIsValid &&
-      confirmPasswordIsValid;
-  }
+  // Helper to close crop modal and reset file input
+  const handleCloseCropModal = () => {
+    setShowCropModal(false);
+    setImgSrc(""); // Reset the image source
+    setCrop(undefined); // Reset crop state
+    setCompletedCrop(undefined); // Reset completed crop
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
-  const LoginHundler = async  (e: React.FormEvent) => {
+  const LoginHundler = async (e: React.FormEvent) => {
     e.preventDefault();
-      try {
-    if (!formValidity) {
-      return;
-    }
-
-            const userData = { username, password };
-
-            setIsAuthLoading(true);
-            const response = await fetch("http://localhost:4000/v1/users/login", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              credentials: "include",
-              body: JSON.stringify(userData),
-            });
-
-            const data = await response.json();
-
-            if (data.status === "success") {
-              // console.log("Login successful:", data);
-              sessionStorage.setItem("currentUser", JSON.stringify(data.user));
-              router.push("/main-dashboard"); // Redirect to home page
-            } else {
-              console.error("Login failed:", data.message);
-              // You can add a toast notification or error state here instead of alert
-            }
-
-    resetFullName();
-    resetUsername();
-    resetEmail();
-    resetPhone();
-    resetPassword();
-    resetConfirmPassword();
-    setAvatarFile(null);
-    setAvatarPreview(null);
-
-
-    if (!isLogin) {
-      setIsLogin(true);
-    }
-      } catch (error) {
-        console.error("Login error:", error);
-        // You can add a toast notification or error state here instead of alert
-      } finally {
-        setIsAuthLoading(false);
-      }
     
+    try {
+      if (!formValidity) {
+        return;
+      }
+
+      setIsAuthLoading(true);
+      const response = await fetch("http://localhost:4000/v1/users/login", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status === "success") {
+        console.log("Login successful:", data);
+        // Redirect to dashboard or main page
+        router.push("/main-dashboard");
+      } else {
+        console.error("Login failed:", data.message);
+        // You can add a toast notification or error state here
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      // You can add a toast notification or error state here
+    } finally {
+      setIsAuthLoading(false);
+    }
   };
-
-
 
   const SignupHandler = async (e: React.FormEvent) => {
   
@@ -183,6 +268,65 @@ const Authentication = () => {
         {/* Subtle accent gradients */}
         <div className="absolute top-1/3 right-1/3 w-[400px] h-[400px] bg-gradient-to-r from-blue-600/15 to-indigo-800/15 rounded-full blur-3xl" />
       </div>
+       
+       {showCropModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-white/10 backdrop-blur-md p-6 rounded-lg max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4 text-white text-center">Crop Your Image</h2>
+            
+            {imgSrc && (
+              <div className="flex flex-col items-center">
+                <ReactCrop
+                  crop={crop}
+                  onChange={(_, percentCrop) => setCrop(percentCrop)}
+                  onComplete={(c) => setCompletedCrop(c)}
+                  aspect={1} // Force square aspect ratio
+                  className="max-h-96"
+                >
+                  <img
+                    ref={imgRef}
+                    alt="Crop me"
+                    src={imgSrc}
+                    onLoad={onImageLoad}
+                    style={{ maxHeight: "70vh" }}
+                  />
+                </ReactCrop>
+                
+                {completedCrop && (
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={onCropComplete}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2"
+                    >
+                      <Crop className="w-4 h-4" />
+                      Apply Crop
+                    </button>
+                    <button
+                      onClick={handleCloseCropModal}
+                      className="px-4 py-2 bg-gray-500 text-white rounded-md"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                
+                {/* Hidden canvas for preview */}
+                <div className="hidden">
+                  <canvas
+                    ref={previewCanvasRef}
+                    style={{
+                      display: "none",
+                      objectFit: "contain",
+                      width: completedCrop?.width,
+                      height: completedCrop?.height,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Go Back Button - Above the card, centered */}
       <div className="absolute top-8 left-1/2 transform -translate-x-1/2 z-20">
@@ -291,6 +435,7 @@ const Authentication = () => {
                         accept="image/*"
                         onChange={handleAvatarChange}
                         className="hidden"
+                        ref={fileInputRef}
                       />
                       <label
                         htmlFor="avatar"
@@ -454,6 +599,7 @@ const Authentication = () => {
       </div>
     </div>
   );
-};
+}
+
 
 export default Authentication;
