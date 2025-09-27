@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -14,6 +15,13 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Reset navigation state when component unmounts or route changes
+  useEffect(() => {
+    return () => {
+      setIsNavigating(false);
+    };
+  }, []);
+
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
     if (element) {
@@ -21,9 +29,28 @@ const Navbar = () => {
     }
   };
 
-  const handleGetStarted = () => {
-    router.push('/auth');
-  };
+  const handleGetStarted = useCallback(() => {
+    if (isNavigating) return; // Prevent multiple clicks
+    
+    console.log('Get Started button clicked - navigating to /auth...');
+    setIsNavigating(true);
+    
+    // Use requestAnimationFrame to ensure the state update is processed
+    requestAnimationFrame(() => {
+      try {
+        router.replace('/auth');
+      } catch (error) {
+        console.error('Router navigation error:', error);
+        // Fallback to window.location if router fails
+        window.location.href = '/auth';
+      }
+    });
+    
+    // Reset navigation state after 2 seconds as fallback
+    setTimeout(() => {
+      setIsNavigating(false);
+    }, 2000);
+  }, [router, isNavigating]);
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
@@ -68,8 +95,12 @@ const Navbar = () => {
 
         {/* Right Side */}
         <div className="flex items-center space-x-4">
-          <Button className="btn-primary" onClick={handleGetStarted}>
-            Get Started
+          <Button 
+            className="btn-primary" 
+            onClick={handleGetStarted}
+            disabled={isNavigating}
+          >
+            {isNavigating ? "Loading..." : "Get Started"}
           </Button>
         </div>
       </div>

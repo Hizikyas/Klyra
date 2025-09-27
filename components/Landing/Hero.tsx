@@ -4,16 +4,41 @@ import { Play, MessageCircle, Video, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 export default function Hero() {
   const router = useRouter();
   const [isNavigating, setIsNavigating] = useState(false);
 
-  const handleStartFreeTrial = () => {
+  // Reset navigation state when component unmounts
+  useEffect(() => {
+    return () => {
+      setIsNavigating(false);
+    };
+  }, []);
+
+  const handleStartFreeTrial = useCallback(() => {
+    if (isNavigating) return; // Prevent multiple clicks
+    
+    console.log('Hero Start Here button clicked - navigating to /auth...');
     setIsNavigating(true);
-    router.push('/auth');
-  };
+    
+    // Use requestAnimationFrame to ensure the state update is processed
+    requestAnimationFrame(() => {
+      try {
+        router.replace('/auth');
+      } catch (error) {
+        console.error('Hero router navigation error:', error);
+        // Fallback to window.location if router fails
+        window.location.href = '/auth';
+      }
+    });
+    
+    // Reset navigation state after 2 seconds as fallback
+    setTimeout(() => {
+      setIsNavigating(false);
+    }, 2000);
+  }, [router, isNavigating]);
 
   return (
     <section id="home" className="relative pt-[12rem] min-h-[70vh] md:min-h-[80vh] flex items-center justify-center overflow-hidden">
