@@ -14,9 +14,10 @@ import {
 
 interface TopNavigationProps {
   onMobileSidebarToggle?: () => void
+  onSettingsClick?: () => void
 }
 
-export function TopNavigation({ onMobileSidebarToggle }: TopNavigationProps) {
+export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNavigationProps) {
   const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
   console.log("TopNavigation currentUser:", currentUser) // Debug log
   return (
@@ -72,7 +73,10 @@ export function TopNavigation({ onMobileSidebarToggle }: TopNavigationProps) {
               
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56 bg-slate-800 border-slate-700 z-[60]" align="end">
-              <DropdownMenuItem className="text-slate-300 hover:text-white hover:bg-slate-700">
+              <DropdownMenuItem 
+                className="text-slate-300 hover:text-white hover:bg-slate-700" 
+                onClick={onSettingsClick}
+              >
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </DropdownMenuItem>

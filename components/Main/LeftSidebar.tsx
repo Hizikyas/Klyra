@@ -1,6 +1,7 @@
 "use client"
 
-import { MessageCircle, Video, Users, Settings, Circle } from "lucide-react"
+import { Video, Users, Settings, Circle } from "lucide-react"
+import { IoChatboxEllipsesSharp } from "react-icons/io5"
 import React , { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -16,7 +17,7 @@ export function LeftSidebar({ activeTab, onTabChange }: LeftSidebarProps) {
   const [collapsed, setCollapsed] = useState(true)
   const [isHovered, setIsHovered] = useState(false)
   const tabs = [
-    { id: "chats", label: "Chats", icon: MessageCircle },
+    { id: "chats", label: "Chats", icon: IoChatboxEllipsesSharp },
     { id: "video", label: "Video Calls", icon: Video },
     { id: "contacts", label: "Contacts", icon: Users },
     { id: "settings", label: "Settings", icon: Settings },
@@ -42,15 +43,12 @@ export function LeftSidebar({ activeTab, onTabChange }: LeftSidebarProps) {
                  </AvatarFallback>
                )}
              </Avatar>
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-800"></div>
+            <div className="absolute bottom-0 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-800"></div>
           </div>
           {showLabels && (
             <div className="flex-1">
-              <h3 className="text-white font-semibold">{currentUser?.username}</h3>
-              <div className="flex items-center space-x-1 text-sm text-green-400">
-                <Circle className="h-2 w-2 fill-current" />
-                <span>Online</span>
-              </div>
+              <h3 title="Full name" className="text-white font-semibold">{currentUser?.fullname}</h3>
+              <h3 title="username" className="text-gray-300 font-normal">@{currentUser?.username}</h3>
             </div>
           )}
         </div>

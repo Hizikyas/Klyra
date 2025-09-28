@@ -12,6 +12,12 @@ export function MainDashboard() {
   const [selectedChat, setSelectedChat] = useState<string | null>(null)
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const [isRightCollapsed, setIsRightCollapsed] = useState(false)
+  const [selectedSetting, setSelectedSetting] = useState<string | null>("profile")
+
+  const handleSettingsClick = () => {
+    setActiveTab("settings")
+    setSelectedSetting("profile") // Default to profile view
+  }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -23,11 +29,21 @@ export function MainDashboard() {
         <div className="gradient-animation absolute inset-0 opacity-40" />
       </div>
 
-      <TopNavigation onMobileSidebarToggle={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} />
+      <TopNavigation 
+        onMobileSidebarToggle={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} 
+        onSettingsClick={handleSettingsClick}
+      />
 
       <div className="hidden lg:flex h-[calc(100vh-4rem)]">
         <LeftSidebar activeTab={activeTab} onTabChange={setActiveTab} />
-        <ChatSection activeTab={activeTab} selectedChat={selectedChat} onChatSelect={setSelectedChat} onToggleRightPanel={() => setIsRightCollapsed((v) => !v)} />
+        <ChatSection 
+          activeTab={activeTab} 
+          selectedChat={selectedChat} 
+          onChatSelect={setSelectedChat} 
+          onToggleRightPanel={() => setIsRightCollapsed((v) => !v)}
+          selectedSetting={selectedSetting}
+          onSettingSelect={setSelectedSetting}
+        />
         <div className="hidden xl:block">
           <RightSidebar selectedChat={selectedChat} collapsed={isRightCollapsed} onClose={() => setIsRightCollapsed(true)} />
         </div>
@@ -35,7 +51,14 @@ export function MainDashboard() {
 
       <div className="lg:hidden h-[calc(100vh-4rem)]">
         <MobileSidebar isOpen={isMobileSidebarOpen} onClose={() => setIsMobileSidebarOpen(false)} activeTab={activeTab} onTabChange={setActiveTab} />
-        <ChatSection activeTab={activeTab} selectedChat={selectedChat} onChatSelect={setSelectedChat} isMobile={true} />
+        <ChatSection 
+          activeTab={activeTab} 
+          selectedChat={selectedChat} 
+          onChatSelect={setSelectedChat} 
+          isMobile={true}
+          selectedSetting={selectedSetting}
+          onSettingSelect={setSelectedSetting}
+        />
       </div>
     </div>
   )

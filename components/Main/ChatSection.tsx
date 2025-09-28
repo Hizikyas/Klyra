@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { SettingsSidebar } from "./SettingsSidebar"
+import { SettingsContent } from "./SettingsContent"
 
 interface ChatSectionProps {
   activeTab: string
@@ -14,6 +16,8 @@ interface ChatSectionProps {
   onChatSelect: (chatId: string) => void
   isMobile?: boolean
   onToggleRightPanel?: () => void
+  selectedSetting: string | null
+  onSettingSelect: (setting: string) => void
 }
 
 const mockChats = [
@@ -30,7 +34,7 @@ const mockMessages = [
   { id: "4", sender: "You", content: "It's a messaging app with video calls. Really modern design!", timestamp: "2:35 PM", isOwn: true },
 ]
 
-export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = false, onToggleRightPanel }: ChatSectionProps) {
+export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = false, onToggleRightPanel, selectedSetting, onSettingSelect }: ChatSectionProps) {
   const [message, setMessage] = useState("")
 
   const handleSendMessage = () => {
@@ -43,6 +47,22 @@ export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = 
     onChatSelect("")
   }
 
+  if (activeTab === "settings") {
+    return (
+      <div className="flex-1 flex">
+        <SettingsSidebar 
+          selectedSetting={selectedSetting} 
+          onSettingSelect={onSettingSelect} 
+          isMobile={isMobile}
+        />
+        <SettingsContent 
+          selectedSetting={selectedSetting} 
+          isMobile={isMobile}
+        />
+      </div>
+    )
+  }
+
   if (activeTab !== "chats") {
     return (
       <div className="flex-1 flex items-center justify-center bg-slate-900/20">
@@ -50,7 +70,6 @@ export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = 
           <div className="text-6xl mb-4">
             {activeTab === "video" && "📹"}
             {activeTab === "contacts" && "👥"}
-            {activeTab === "settings" && "⚙️"}
           </div>
           <h3 className="text-xl font-semibold mb-2 capitalize">{activeTab}</h3>
           <p>This feature is coming soon!</p>
@@ -162,7 +181,8 @@ export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = 
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center text-slate-400">
-              <MessageCircle className="h-16 w-16 mx-auto mb-4 text-slate-500" />
+              <img src="/icons/chatting_interface.svg" alt="No conversation selected" className="h-32 w-32 mx-auto mb-4 opacity-50" />
+              {/* <MessageCircle className="h-16 w-16 mx-auto mb-4 text-slate-500" /> */}
               <h3 className="text-xl font-semibold mb-2">Select a conversation</h3>
               <p>Choose a chat from the sidebar to start messaging</p>
             </div>

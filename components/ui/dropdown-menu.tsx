@@ -34,8 +34,17 @@ export function DropdownMenuContent({ className, align = "end", forceMount, chil
   )
 }
 
-export function DropdownMenuItem({ className, children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("flex cursor-pointer select-none items-center rounded-sm px-2 py-2 text-sm hover:bg-slate-700", className)}>{children}</div>
+export function DropdownMenuItem({ className, children, onClick }: { className?: string; children: React.ReactNode; onClick?: () => void }) {
+  const ctx = React.useContext(DropdownContext)!
+  
+  const handleClick = () => {
+    if (onClick) {
+      onClick()
+    }
+    ctx.setOpen(false)
+  }
+  
+  return <div className={cn("flex cursor-pointer select-none items-center rounded-sm px-2 py-2 text-sm hover:bg-slate-700", className)} onClick={handleClick}>{children}</div>
 }
 
 export function DropdownMenuSeparator({ className }: { className?: string }) {

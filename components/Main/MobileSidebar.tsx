@@ -1,6 +1,7 @@
 "use client"
 
-import { MessageCircle, Video, Users, Settings, Circle, X } from "lucide-react"
+import { Video, Users, Settings, X } from "lucide-react"
+import { IoChatboxEllipsesSharp } from "react-icons/io5"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
@@ -13,8 +14,9 @@ interface MobileSidebarProps {
 }
 
 export function MobileSidebar({ isOpen, onClose, activeTab, onTabChange }: MobileSidebarProps) {
+  const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
   const tabs = [
-    { id: "chats", label: "Chats", icon: MessageCircle },
+    { id: "chats", label: "Chats", icon: IoChatboxEllipsesSharp },
     { id: "video", label: "Video Calls", icon: Video },
     { id: "contacts", label: "Contacts", icon: Users },
     { id: "settings", label: "Settings", icon: Settings },
@@ -40,19 +42,18 @@ export function MobileSidebar({ isOpen, onClose, activeTab, onTabChange }: Mobil
 
           <div className="p-6 border-b border-slate-700/50">
             <div className="flex items-center space-x-3">
-              <div className="relative">
-                <Avatar className="h-12 w-12">
-                  <AvatarImage src="/placeholder.svg?key=gw0b4" alt="John Doe" />
-                  <AvatarFallback className="bg-purple-600 text-white text-lg">JD</AvatarFallback>
-                </Avatar>
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-800"></div>
-              </div>
+              <Avatar className="h-12 w-12">
+                {currentUser?.avatar && currentUser?.avatar.trim() !== "" ? (
+                  <AvatarImage src={currentUser.avatar} alt={currentUser?.fullname || currentUser?.username || "User"} />
+                ) : (
+                  <AvatarFallback className="bg-purple-600 text-white text-lg">
+                    {currentUser?.username?.charAt(0) || currentUser?.fullname?.charAt(0) || "U"}
+                  </AvatarFallback>
+                )}
+              </Avatar>
               <div className="flex-1">
-                <h3 className="text-white font-semibold">John Doe</h3>
-                <div className="flex items-center space-x-1 text-sm text-green-400">
-                  <Circle className="h-2 w-2 fill-current" />
-                  <span>Online</span>
-                </div>
+                <h3 className="text-white font-semibold">{currentUser?.fullname || currentUser?.username || "User"}</h3>
+                <h3 className="text-gray-300 font-normal">@{currentUser?.username || "username"}</h3>
               </div>
             </div>
           </div>

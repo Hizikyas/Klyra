@@ -100,7 +100,7 @@ const Navbar = () => {
             onClick={handleGetStarted}
             disabled={isNavigating}
           >
-            {isNavigating ? "Loading..." : "Get Started"}
+            Get Started
           </Button>
         </div>
       </div>

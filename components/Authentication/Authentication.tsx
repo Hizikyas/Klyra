@@ -181,15 +181,18 @@ const Authentication = () => {
 
       if (data.status === "success") {
         console.log("Login successful:", data);
-        // Redirect to dashboard or main page
+
+        if (data.user) {
+           sessionStorage.setItem("currentUser", JSON.stringify(data.user));
+          }
+
         router.push("/main-dashboard");
       } else {
         console.error("Login failed:", data.message);
-        // You can add a toast notification or error state here
+     
       }
     } catch (error) {
       console.error("Login error:", error);
-      // You can add a toast notification or error state here
     } finally {
       setIsAuthLoading(false);
     }
