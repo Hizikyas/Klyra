@@ -1,6 +1,7 @@
 "use client"
 
-import { Search, Bell, Settings, LogOut, Menu } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Search, Bell, Settings, LogOut, Menu, Loader2, CheckCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -11,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
 
 interface TopNavigationProps {
   onMobileSidebarToggle?: () => void
@@ -20,6 +22,101 @@ interface TopNavigationProps {
 export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNavigationProps) {
   const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
   console.log("TopNavigation currentUser:", currentUser) // Debug log
+  const [query, setQuery] = useState("")
+  const [isOpen, setIsOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [users, setUsers] = useState<any[]>([])
+  const [debouncedQuery, setDebouncedQuery] = useState("")
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Debounce the query
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300)
+    return () => clearTimeout(t)
+  }, [query])
+
+  // Fetch users (then filter client-side for now)
+  useEffect(() => {
+    if (!debouncedQuery) {
+      setUsers([])
+      setIsLoading(false)
+      return
+    }
+    let isCancelled = false
+    const fetchUsers = async () => {
+      try {
+        setIsLoading(true)
+        // Narrow payload; backend supports fields/limit via AppFeatures
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000"}/v1/users?limit=20&fields=id,fullname,username,avatar`)
+        const data = await res.json()
+        if (isCancelled) return
+        const q = debouncedQuery.toLowerCase()
+        const filtered = (data?.users || []).filter((u: any) =>
+          (u.username && String(u.username).toLowerCase().includes(q)) ||
+          (u.fullname && String(u.fullname).toLowerCase().includes(q))
+        )
+        setUsers(filtered)
+      } catch (e) {
+        setUsers([])
+      } finally {
+        if (!isCancelled) setIsLoading(false)
+      }
+    }
+    fetchUsers()
+    return () => {
+      isCancelled = true
+    }
+  }, [debouncedQuery])
+
+  // Close on outside click / escape
+  useEffect(() => {
+    const onDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsOpen(false)
+    }
+    const onClick = (e: MouseEvent) => {
+      if (!containerRef.current) return
+      if (!containerRef.current.contains(e.target as Node)) setIsOpen(false)
+    }
+    document.addEventListener("keydown", onDown)
+    document.addEventListener("mousedown", onClick)
+    return () => {
+      document.removeEventListener("keydown", onDown)
+      document.removeEventListener("mousedown", onClick)
+    }
+  }, [])
+
+  const highlightMatch = (text: string, q: string) => {
+    if (!text) return null
+    if (!q) return text
+    const i = text.toLowerCase().indexOf(q.toLowerCase())
+    if (i === -1) return text
+    const before = text.slice(0, i)
+    const match = text.slice(i, i + q.length)
+    const after = text.slice(i + q.length)
+    return (
+      <>
+        {before}
+        <span className="font-semibold text-white">{match}</span>
+        {after}
+      </>
+    )
+  }
+
+  const showDropdown = isOpen && (isLoading || users.length > 0)
+
+  const handleSelectUser = (u: any) => {
+    // Dispatch event to add chat to sidebar
+    window.dispatchEvent(new CustomEvent("klyra:addChatFromSearch", { detail: {
+      id: u.id,
+      name: u.fullname || u.username,
+      username: u.username,
+      avatar: u.avatar || null,
+      lastMessage: u.lastMessage || null,
+      isRead: u.lastMessage ? !!u.lastMessage?.isRead : undefined,
+    }}))
+    setIsOpen(false)
+  }
+
   return (
     <header className="h-16 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 px-4 lg:px-6 flex items-center justify-between relative z-50">
       <div className="flex items-center space-x-4">
@@ -35,14 +132,74 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
       </div>
 
       <div className="hidden md:flex flex-1 max-w-md mx-8">
-        <div className="relative w-full">
+        <div className="relative w-full" ref={containerRef}>
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
           <Input
-            placeholder="Search contacts or chats..."
+            placeholder="Search users or chats..."
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setIsOpen(true)
+            }}
+            onFocus={() => query && setIsOpen(true)}
             className="pl-10 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
           />
+          {showDropdown && (
+            <div className="absolute left-0 right-0 mt-2 bg-slate-800/95 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-[70]">
+              {isLoading ? (
+                <div className="flex items-center justify-center py-6 text-slate-300">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <span>Searching…</span>
+                </div>
+              ) : (
+                <ul className="max-h-80 overflow-auto divide-y divide-slate-700">
+                  {users.map((u) => (
+                    <li key={u.id} className="p-3 hover:bg-slate-700/50 cursor-pointer" onClick={() => handleSelectUser(u)}>
+                      <div className="flex items-start space-x-3">
+                        <Avatar className="h-9 w-9 shrink-0">
+                          {u?.avatar ? (
+                            <AvatarImage src={u.avatar} alt={u.fullname || u.username} />
+                          ) : (
+                            <AvatarFallback className="bg-purple-600 text-white">
+                              {(u.username || u.fullname || "U").charAt(0)}
+                            </AvatarFallback>
+                          )}
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-slate-200 truncate">
+                            {u.fullname ? (
+                              <span>{highlightMatch(u.fullname, debouncedQuery)}</span>
+                            ) : (
+                              <span>{highlightMatch(u.username, debouncedQuery)}</span>
+                            )}
+                          </div>
+                          {u.username && (
+                            <div className="text-xs text-slate-400 truncate">@{highlightMatch(u.username, debouncedQuery)}</div>
+                          )}
+                          {u.lastMessage && (
+                            <div className="flex items-center justify-between mt-1">
+                              <div className="text-xs text-slate-400 truncate">
+                                {highlightMatch(u.lastMessage?.content || "", debouncedQuery)}
+                              </div>
+                              <div className={cn("ml-2", u.lastMessage?.isRead ? "text-blue-400" : "text-slate-400")}> 
+                                <CheckCheck className="h-4 w-4" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {isOpen && (
+        <div className="fixed inset-0 z-40 backdrop-blur-sm bg-slate-900/20" onClick={() => setIsOpen(false)} />
+      )}
 
       <div className="flex items-center space-x-2 lg:space-x-4">
         <Button variant="ghost" size="icon" className="md:hidden text-slate-300 hover:text-white hover:bg-slate-700/50">

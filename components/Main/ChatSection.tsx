@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Send, Paperclip, Smile, Video, Phone, MessageCircle, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,7 +20,7 @@ interface ChatSectionProps {
   onSettingSelect: (setting: string) => void
 }
 
-const mockChats = [
+const initialMockChats = [
   { id: "1", name: "Sarah Wilson", lastMessage: "Hey! How are you doing?", timestamp: "2m ago", unread: 2, avatar: "/placeholder.svg?key=sw1", online: true },
   { id: "2", name: "Team Alpha", lastMessage: "Meeting at 3 PM today", timestamp: "15m ago", unread: 0, avatar: "/placeholder.svg?key=ta1", online: false, isGroup: true },
   { id: "3", name: "Mike Johnson", lastMessage: "Thanks for the help!", timestamp: "1h ago", unread: 0, avatar: "/placeholder.svg?key=mj1", online: true },
@@ -36,6 +36,34 @@ const mockMessages = [
 
 export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = false, onToggleRightPanel, selectedSetting, onSettingSelect }: ChatSectionProps) {
   const [message, setMessage] = useState("")
+  const [chats, setChats] = useState(initialMockChats)
+
+  // Listen for user selection from search to add into messages sidebar
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { id: string, name: string, username?: string, avatar?: string | null, lastMessage?: { content?: string, isRead?: boolean } | null }
+      if (!detail?.id) return
+
+      setChats((prev) => {
+        const exists = prev.some(c => c.id === detail.id)
+        if (exists) return prev
+        return [
+          {
+            id: detail.id,
+            name: detail.name,
+            lastMessage: detail.lastMessage?.content || "",
+            timestamp: "", // could be filled when backend provides
+            unread: detail.lastMessage && detail.lastMessage.isRead === false ? 1 : 0,
+            avatar: detail.avatar || undefined,
+            online: false,
+          },
+          ...prev,
+        ]
+      })
+    }
+    window.addEventListener("klyra:addChatFromSearch", handler as EventListener)
+    return () => window.removeEventListener("klyra:addChatFromSearch", handler as EventListener)
+  }, [])
 
   const handleSendMessage = () => {
     if (message.trim()) {
@@ -86,7 +114,7 @@ export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = 
         </div>
         <ScrollArea className="h-[calc(100vh-8rem)]">
           <div className="p-2">
-            {mockChats.map((chat) => (
+            {chats.map((chat) => (
               <div key={chat.id} className={cn("p-3 rounded-lg cursor-pointer transition-all duration-200 mb-1", selectedChat === chat.id ? "bg-purple-600/20 border border-purple-500/30" : "hover:bg-slate-700/30")} onClick={() => onChatSelect(chat.id)}>
                 <div className="flex items-center space-x-3">
                   <div className="relative">
