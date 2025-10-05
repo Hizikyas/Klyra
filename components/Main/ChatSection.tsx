@@ -20,7 +20,18 @@ interface ChatSectionProps {
   onSettingSelect: (setting: string) => void
 }
 
-const initialMockChats = [
+interface ChatItem {
+  id: string
+  name: string
+  lastMessage: string
+  timestamp: string
+  unread: number
+  avatar?: string
+  online: boolean
+  isGroup?: boolean
+}
+
+const initialMockChats: ChatItem[] = [
   { id: "1", name: "Sarah Wilson", lastMessage: "Hey! How are you doing?", timestamp: "2m ago", unread: 2, avatar: "/placeholder.svg?key=sw1", online: true },
   { id: "2", name: "Team Alpha", lastMessage: "Meeting at 3 PM today", timestamp: "15m ago", unread: 0, avatar: "/placeholder.svg?key=ta1", online: false, isGroup: true },
   { id: "3", name: "Mike Johnson", lastMessage: "Thanks for the help!", timestamp: "1h ago", unread: 0, avatar: "/placeholder.svg?key=mj1", online: true },
@@ -36,7 +47,8 @@ const mockMessages = [
 
 export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = false, onToggleRightPanel, selectedSetting, onSettingSelect }: ChatSectionProps) {
   const [message, setMessage] = useState("")
-  const [chats, setChats] = useState(initialMockChats)
+  const [chats, setChats] = useState<ChatItem[]>(initialMockChats)
+  const selectedChatObj = chats.find(c => c.id === selectedChat)
 
   // Listen for user selection from search to add into messages sidebar
   useEffect(() => {
@@ -159,11 +171,11 @@ export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = 
                     </Button>
                   )}
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src="/placeholder.svg?key=sw1" alt="Sarah Wilson" />
-                    <AvatarFallback className="bg-purple-600 text-white">SW</AvatarFallback>
+                    <AvatarImage src={selectedChatObj?.avatar || "/placeholder.svg"} alt={selectedChatObj?.name || "Chat"} />
+                    <AvatarFallback className="bg-purple-600 text-white">{(selectedChatObj?.name || "").split(" ").map(n => n[0]).join("") || "C"}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <h3 className="text-white font-semibold">Sarah Wilson</h3>
+                    <h3 className="text-white font-semibold">{selectedChatObj?.name || "Conversation"}</h3>
                     <p className="text-sm text-green-400">Online</p>
                   </div>
                 </button>
