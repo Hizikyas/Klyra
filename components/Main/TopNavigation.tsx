@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import Image from "next/image"
 
 interface TopNavigationProps {
   onMobileSidebarToggle?: () => void
@@ -28,6 +29,7 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
   const [users, setUsers] = useState<any[]>([])
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const containerRef = useRef<HTMLDivElement>(null)
+  const [hasSubmitted, setHasSubmitted] = useState(false)
 
   // Debounce the query
   useEffect(() => {
@@ -105,6 +107,11 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
   const showDropdown = isOpen && (isLoading || users.length > 0)
 
   const handleSelectUser = (u: any) => {
+    // Prevent adding self to messages sidebar
+    if (u?.id && (currentUser?.id === u.id || currentUser?.username === u.username)) {
+      setIsOpen(false)
+      return
+    }
     // Dispatch event to add chat to sidebar
     window.dispatchEvent(new CustomEvent("klyra:addChatFromSearch", { detail: {
       id: u.id,
@@ -140,18 +147,38 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
             onChange={(e) => {
               setQuery(e.target.value)
               setIsOpen(true)
+              setHasSubmitted(false)
             }}
             onFocus={() => query && setIsOpen(true)}
-            className="pl-10 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                setHasSubmitted(true)
+                setIsOpen(true)
+              }
+            }}
+            className="pl-10 pr-20 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
           />
-          {showDropdown && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white hover:bg-slate-700/50"
+            onClick={() => {
+              if (!query.trim()) return
+              setHasSubmitted(true)
+              setIsOpen(true)
+            }}
+          >
+            Search
+          </Button>
+          {(showDropdown || (isOpen && hasSubmitted && !isLoading)) && (
             <div className="absolute left-0 right-0 mt-2 bg-slate-800/95 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-[70]">
               {isLoading ? (
                 <div className="flex items-center justify-center py-6 text-slate-300">
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   <span>Searching…</span>
                 </div>
-              ) : (
+              ) : users.length > 0 ? (
                 <ul className="max-h-80 overflow-auto divide-y divide-slate-700">
                   {users.map((u) => (
                     <li key={u.id} className="p-3 hover:bg-slate-700/50 cursor-pointer" onClick={() => handleSelectUser(u)}>
@@ -191,15 +218,19 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
                     </li>
                   ))}
                 </ul>
-              )}
+              ) : hasSubmitted && debouncedQuery ? (
+                <div className="flex flex-col items-center justify-center py-8 text-slate-300">
+                  <Image src="/icons/no_data.svg" alt="No results" width={112} height={112} className="opacity-80 mb-3" />
+                  <div className="text-sm">No results found for <span className="font-semibold text-white">“{query.trim()}”</span>.</div>
+                  <div className="text-xs text-slate-400 mt-1">Try a different name or username.</div>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
       </div>
 
-      {isOpen && (
-        <div className="fixed inset-0 z-40 backdrop-blur-sm bg-slate-900/20" onClick={() => setIsOpen(false)} />
-      )}
+
 
       <div className="flex items-center space-x-2 lg:space-x-4">
         <Button variant="ghost" size="icon" className="md:hidden text-slate-300 hover:text-white hover:bg-slate-700/50">

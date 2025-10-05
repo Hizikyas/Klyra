@@ -113,7 +113,7 @@ export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = 
           <h2 className="text-lg font-semibold text-white">Messages</h2>
         </div>
         <ScrollArea className="h-[calc(100vh-8rem)]">
-          <div className="p-2">
+            <div className="p-2">
             {chats.map((chat) => (
               <div key={chat.id} className={cn("p-3 rounded-lg cursor-pointer transition-all duration-200 mb-1", selectedChat === chat.id ? "bg-purple-600/20 border border-purple-500/30" : "hover:bg-slate-700/30")} onClick={() => onChatSelect(chat.id)}>
                 <div className="flex items-center space-x-3">
@@ -127,16 +127,18 @@ export function ChatSection({ activeTab, selectedChat, onChatSelect, isMobile = 
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-white font-medium truncate">{chat.name}</h4>
-                      <span className="text-xs text-slate-400">{chat.timestamp}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-slate-400 truncate">{chat.lastMessage}</p>
-                      {chat.unread > 0 && (
-                        <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">{chat.unread}</span>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-white font-medium leading-tight truncate">{chat.name}</h4>
+                        <span className="text-xs text-slate-400">{chat.timestamp}</span>
+                      </div>
+                      {chat.lastMessage && (
+                        <div className="flex items-center justify-between mt-0.5">
+                          <p className="text-sm text-slate-400 truncate">{chat.lastMessage}</p>
+                          {chat.unread > 0 && (
+                            <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">{chat.unread}</span>
+                          )}
+                        </div>
                       )}
-                    </div>
                   </div>
                 </div>
               </div>
