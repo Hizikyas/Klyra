@@ -32,7 +32,7 @@ export function DialogContent({ className, children }: { className?: string; chi
   const ctx = React.useContext(DialogContext)
   if (!ctx?.open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={() => ctx.setOpen(false)} />
       <div className={cn("relative z-10 w-full max-w-lg rounded-lg border bg-slate-900", className)}>{children}</div>
     </div>
