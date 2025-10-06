@@ -186,7 +186,7 @@ const Authentication = () => {
            sessionStorage.setItem("currentUser", JSON.stringify(data.user));
           }
 
-        router.push("/main-dashboard");
+        router.push("/dashboard");
       } else {
         console.error("Login failed:", data.message);
      
