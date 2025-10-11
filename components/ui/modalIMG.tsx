@@ -23,15 +23,17 @@ export default function Modal({ children, onClose }: ModalProps) {
   if (!modalRoot) return null
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-sm">
-      <div className="relative bg-slate-700 rounded-sm shadow-xl border border-slate-500">
+    <div className="fixed inset-0 z-50 flex items-center justify-center  bg-black/10 backdrop-blur-sm">
+      <div className="relative bg-transparent rounded-md shadow-xl border-4 border-black/90">
         <button
           onClick={onClose}
-          className="absolute -top-3 -right-3 rounded-sm px-[8px] bg-black/70 text-white hover:bg-black/80"
+          className="absolute -top-4 -right-5 rounded-full w-8 h-8 flex items-center justify-center bg-black/90 text-white hover:bg-black/80 z-10"
         >
           ✕
         </button>
-        {children}
+        <div className="w-full h-full">
+          {children}
+        </div>
       </div>
     </div>,
     modalRoot

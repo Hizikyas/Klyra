@@ -108,30 +108,10 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
           <img
             src={user?.avatar || "/placeholder.svg"}
             alt={user?.fullName || "User"}
-            className="w-[85vw] max-w-[520px] max-h-[65vh] object-contain rounded-md"
+            className="w-full max-w-[70vw] max-h-[70vh] object-contain rounded-md"
           />
         </Modal>
       )}
-
-      {/* <Dialog open={isImageOpen} onOpenChange={setIsImageOpen}>
-        <DialogContent className="bg-slate-900 border border-slate-700 shadow-xl w-full max-w-lg p-4">
-          <div className="relative flex items-center justify-center">
-            <button
-              type="button"
-              aria-label="Close"
-              onClick={() => setIsImageOpen(false)}
-              className="absolute -top-3 -right-3 z-10 rounded-full bg-black/70 text-white p-2 hover:bg-black/80"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <img
-              src={(user?.avatar || "/placeholder.svg")}
-              alt={(user?.fullName || "User")}
-              className="w-[85vw] max-w-[520px] max-h-[65vh] object-contain rounded-md"
-            />
-          </div>
-        </DialogContent>
-      </Dialog> */}
 
       <div className="space-y-3 mb-6">
         <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
