@@ -4,8 +4,6 @@ import { useEffect, useState } from "react"
 import { Video, Phone, MoreVertical, UserPlus, ChevronRight, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
 import Modal from "@/components/ui/modalIMG"
 
 interface RightSidebarProps {
@@ -92,12 +90,7 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
         {!isLoading && (
           <p className="text-sm text-green-400 mb-2">Online</p>
         )}
-        {/* {!isLoading && user?.title && (
-          <Badge variant="secondary" className="bg-slate-700 text-slate-300">{user.title}</Badge>
-        )}
-        {!isLoading && !user?.title && (
-          <Badge variant="secondary" className="bg-slate-700 text-slate-300">Member</Badge>
-        )} */}
+
         {error && (
           <div className="mt-2 text-xs text-red-400">{error}</div>
         )}
