@@ -185,6 +185,9 @@ const Authentication = () => {
         if (data.user) {
            sessionStorage.setItem("currentUser", JSON.stringify(data.user));
           }
+        if (data.token) {
+           sessionStorage.setItem("authToken", data.token);
+        }
 
         router.push("/dashboard");
       } else {

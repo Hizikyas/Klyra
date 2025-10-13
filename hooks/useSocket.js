@@ -12,9 +12,11 @@ export const useSocket = (userId, groupId) => {
 
   useEffect(() => {
     // Initialize Socket.IO client
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
     const newSocket = io(SOCKET_URL, {
-      withCredentials: true, // Enable cookies for authentication
-      auth: { userId }, // Optional: Pass userId for backend authentication if needed
+      withCredentials: true,
+      transports: ["websocket"], // avoid polling to bypass CORS cookies constraint
+      auth: { userId, token },
     });
 
     socketRef.current = newSocket;
@@ -37,22 +39,6 @@ export const useSocket = (userId, groupId) => {
     newSocket.on("disconnect", () => {
       setIsConnected(false);
       console.log("Disconnected from server");
-    });
-
-    // Handle incoming events
-    newSocket.on("newMessage", (message) => {
-      console.log("New message received:", message);
-      // Update UI with new message (handled in ChatSection)
-    });
-
-    newSocket.on("messageUpdated", (message) => {
-      console.log("Message updated:", message);
-      // Update UI with updated message (handled in ChatSection)
-    });
-
-    newSocket.on("messageDeleted", (messageId) => {
-      console.log("Message deleted:", messageId);
-      // Update UI to remove deleted message (handled in ChatSection)
     });
 
     // Cleanup on unmount

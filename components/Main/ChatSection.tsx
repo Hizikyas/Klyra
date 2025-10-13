@@ -9,7 +9,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { SettingsContent } from "./SettingsContent";
-import { useSocket } from "../../hooks/useSocket"; 
 
 interface ChatSectionProps {
   activeTab: string;
@@ -19,6 +18,7 @@ interface ChatSectionProps {
   onToggleRightPanel?: () => void;
   selectedSetting: string | null;
   onSettingSelect: (setting: string) => void;
+  socket: any; // Type this properly if possible
 }
 
 interface ChatItem {
@@ -48,60 +48,165 @@ export function ChatSection({
   onToggleRightPanel,
   selectedSetting,
   onSettingSelect,
+  socket,
 }: ChatSectionProps) {
   const [message, setMessage] = useState("");
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "{}");
-  const { socket, isConnected } = useSocket(currentUser?.id, selectedChat?.includes("group:") ? selectedChat.replace("group:", "") : null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  // Fetch initial chats (replace mock data with API call if needed)
+  // Hydrate chats from sessionStorage on load
   useEffect(() => {
-    // Simulate fetching chats from backend (replace with real API call)
-    setChats([
-      { id: "1", name: "Sarah Wilson", lastMessage: "", timestamp: "", unread: 0, avatar: "/placeholder.svg?key=sw1", online: true },
-      { id: "2", name: "Team Alpha", lastMessage: "", timestamp: "", unread: 0, avatar: "/placeholder.svg?key=ta1", online: false, isGroup: true },
-    ]);
+    try {
+      const stored = typeof window !== 'undefined' ? sessionStorage.getItem('recentChats') : null;
+      if (stored) {
+        const parsed = JSON.parse(stored) as ChatItem[];
+        if (Array.isArray(parsed)) setChats(parsed);
+      }
+    } catch (e) {
+      // ignore
+    }
   }, []);
 
-  // Handle incoming messages
+  // Persist chats to sessionStorage whenever they change
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('recentChats', JSON.stringify(chats));
+    } catch (e) {
+      // ignore
+    }
+  }, [chats]);
+
+  // Listen to search selection to add/select chat
+  useEffect(() => {
+    const onAddChatFromSearch = (e: Event) => {
+      const custom = e as CustomEvent;
+      const u = custom.detail || {};
+      if (!u?.id) return;
+      setChats((prev) => {
+        const exists = prev.some((c) => c.id === u.id);
+        const next = exists
+          ? prev
+          : [
+              {
+                id: u.id,
+                name: u.name || u.username || 'User',
+                lastMessage: u.lastMessage?.content || '',
+                timestamp: '',
+                unread: 0,
+                avatar: u.avatar || undefined,
+                online: false,
+              },
+              ...prev,
+            ];
+        return next;
+      });
+      onChatSelect(u.id);
+    };
+    window.addEventListener('klyra:addChatFromSearch', onAddChatFromSearch as EventListener);
+    return () => window.removeEventListener('klyra:addChatFromSearch', onAddChatFromSearch as EventListener);
+  }, [onChatSelect]);
+
+  // Load messages for selected chat
+  useEffect(() => {
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
+    if (!token || !selectedChat) return;
+
+    const fetchMessages = async () => {
+      try {
+        const url = new URL('http://localhost:4000/v1/messages');
+        url.searchParams.set('recipientId', selectedChat);
+        const res = await fetch(url.toString(), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+        });
+        const data = await res.json();
+        if (Array.isArray(data?.messages)) {
+          const mapped: Message[] = data.messages.map((m: any) => ({
+            id: m.id,
+            sender: m.senderId === currentUser.id ? 'You' : m.sender?.username || m.sender?.fullname || 'User',
+            content: m.content || m.mediaUrl || 'Media',
+            timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            isOwn: m.senderId === currentUser.id,
+          }));
+          setMessages(mapped);
+          setTimeout(() => scrollToBottom(), 0);
+        }
+      } catch (e) {
+        console.error('Failed to load messages', e);
+      }
+    };
+
+    fetchMessages();
+  }, [selectedChat, currentUser.id]);
+
+  // Handle incoming messages (filter for current chat)
   useEffect(() => {
     if (!socket) return;
 
-    const handleNewMessage = (newMessage) => {
-      setMessages((prev) => [...prev, {
-        id: newMessage.id,
-        sender: newMessage.senderId === currentUser.id ? "You" : newMessage.sender?.username || "Unknown",
-        content: newMessage.content || newMessage.mediaUrl || "Media",
-        timestamp: new Date(newMessage.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        isOwn: newMessage.senderId === currentUser.id,
-      }]);
+    const handleNewMessage = (newMessage: any) => {
+      const isForThisChat =
+        (!!newMessage.recipientId && newMessage.recipientId === currentUser.id && newMessage.senderId === selectedChat) ||
+        (!!newMessage.recipientId && newMessage.senderId === currentUser.id && newMessage.recipientId === selectedChat);
+
+      if (!selectedChat || !isForThisChat) return;
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: newMessage.id,
+          sender: newMessage.senderId === currentUser.id ? 'You' : newMessage.sender?.username || 'Unknown',
+          content: newMessage.content || newMessage.mediaUrl || 'Media',
+          timestamp: new Date(newMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isOwn: newMessage.senderId === currentUser.id,
+        },
+      ]);
       scrollToBottom();
+
+      // ensure chat exists in list
+      setChats((prev) => {
+        if (!selectedChat) return prev;
+        const exists = prev.some((c) => c.id === selectedChat);
+        if (exists) return prev;
+        const name = newMessage.sender?.fullname || newMessage.sender?.username || 'User';
+        return [
+          {
+            id: selectedChat,
+            name,
+            lastMessage: newMessage.content || '',
+            timestamp: '',
+            unread: 0,
+            avatar: undefined,
+            online: false,
+          },
+          ...prev,
+        ];
+      });
     };
 
-    const handleMessageUpdated = (updatedMessage) => {
+    const handleMessageUpdated = (updatedMessage: any) => {
       setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === updatedMessage.id ? { ...msg, content: updatedMessage.content || msg.content, isRead: updatedMessage.isRead } : msg
-        )
+        prev.map((msg) => (msg.id === updatedMessage.id ? { ...msg, content: updatedMessage.content || msg.content } : msg))
       );
     };
 
-    const handleMessageDeleted = (messageId) => {
+    const handleMessageDeleted = (messageId: string) => {
       setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
     };
 
-    socket.on("newMessage", handleNewMessage);
-    socket.on("messageUpdated", handleMessageUpdated);
-    socket.on("messageDeleted", handleMessageDeleted);
+    socket.on('newMessage', handleNewMessage);
+    socket.on('messageUpdated', handleMessageUpdated);
+    socket.on('messageDeleted', handleMessageDeleted);
 
     return () => {
-      socket.off("newMessage", handleNewMessage);
-      socket.off("messageUpdated", handleMessageUpdated);
-      socket.off("messageDeleted", handleMessageDeleted);
+      socket.off('newMessage', handleNewMessage);
+      socket.off('messageUpdated', handleMessageUpdated);
+      socket.off('messageDeleted', handleMessageDeleted);
     };
-  }, [socket, currentUser.id]);
+  }, [socket, currentUser.id, selectedChat]);
 
   // Scroll to bottom when new message arrives
   const scrollToBottom = () => {
@@ -110,18 +215,62 @@ export function ChatSection({
     }
   };
 
-  const handleSendMessage = () => {
-    if (!socket || !message.trim() || !selectedChat) return;
+  const handleSendMessage = async () => {
+    if (!message.trim() || !selectedChat) return;
 
-    const payload = {
-      content: message,
-      senderId: currentUser.id,
-      recipientId: selectedChat.includes("group:") ? null : selectedChat,
-      groupId: selectedChat.includes("group:") ? selectedChat.replace("group:", "") : null,
-    };
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
+    if (!token) return;
 
-    socket.emit("sendMessage", payload); // Emit to backend
-    setMessage("");
+    try {
+      const res = await fetch('http://localhost:4000/v1/messages', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          content: message,
+          recipientId: selectedChat,
+        }),
+      });
+      const data = await res.json();
+      if (data?.message) {
+        const m = data.message;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: m.id,
+            sender: 'You',
+            content: m.content || m.mediaUrl || 'Media',
+            timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            isOwn: true,
+          },
+        ]);
+        // ensure chat exists in list
+        setChats((prev) => {
+          const exists = prev.some((c) => c.id === selectedChat);
+          if (exists) return prev;
+          const chatMeta = chats.find((c) => c.id === selectedChat);
+          return [
+            chatMeta || {
+              id: selectedChat,
+              name: 'Conversation',
+              lastMessage: m.content || '',
+              timestamp: '',
+              unread: 0,
+              avatar: undefined,
+              online: false,
+            },
+            ...prev,
+          ];
+        });
+        setMessage('');
+        scrollToBottom();
+      }
+    } catch (e) {
+      console.error('Failed to send message', e);
+    }
   };
 
   const handleBackToList = () => {
@@ -171,48 +320,55 @@ export function ChatSection({
         </div>
         <ScrollArea className="h-[calc(100vh-8rem)]">
           <div className="p-2">
-            {chats.map((chat) => (
-              <div
-                key={chat.id}
-                className={cn(
-                  "p-3 rounded-lg cursor-pointer transition-all duration-200 mb-1",
-                  selectedChat === chat.id
-                    ? "bg-purple-600/20 border border-purple-500/30"
-                    : "hover:bg-slate-700/30"
-                )}
-                onClick={() => onChatSelect(chat.id)}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="relative">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage src={chat.avatar || "/placeholder.svg"} alt={chat.name} />
-                      <AvatarFallback className="bg-purple-600 text-white">
-                        {chat.name.split(" ").map((n) => n[0]).join("")}
-                      </AvatarFallback>
-                    </Avatar>
-                    {chat.online && (
-                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-800"></div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-white font-medium leading-tight truncate">{chat.name}</h4>
-                      <span className="text-xs text-slate-400">{chat.timestamp}</span>
+            {chats.length === 0 ? (
+              <div className="p-4 text-slate-400 text-center">
+                <p className="text-sm">No conversations yet.</p>
+                <p className="text-xs mt-1">Search for a user and start a chat.</p>
+              </div>
+            ) : (
+              chats.map((chat) => (
+                <div
+                  key={chat.id}
+                  className={cn(
+                    'p-3 rounded-lg cursor-pointer transition-all duration-200 mb-1',
+                    selectedChat === chat.id
+                      ? 'bg-purple-600/20 border border-purple-500/30'
+                      : 'hover:bg-slate-700/30'
+                  )}
+                  onClick={() => onChatSelect(chat.id)}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="relative">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={chat.avatar || '/placeholder.svg'} alt={chat.name} />
+                        <AvatarFallback className="bg-purple-600 text-white">
+                          {chat.name.split(' ').map((n) => n[0]).join('')}
+                        </AvatarFallback>
+                      </Avatar>
+                      {chat.online && (
+                        <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-800"></div>
+                      )}
                     </div>
-                    {chat.lastMessage && (
-                      <div className="flex items-center justify-between mt-0.5">
-                        <p className="text-sm text-slate-400 truncate">{chat.lastMessage}</p>
-                        {chat.unread > 0 && (
-                          <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                            {chat.unread}
-                          </span>
-                        )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-white font-medium leading-tight truncate">{chat.name}</h4>
+                        <span className="text-xs text-slate-400">{chat.timestamp}</span>
                       </div>
-                    )}
+                      {chat.lastMessage && (
+                        <div className="flex items-center justify-between mt-0.5">
+                          <p className="text-sm text-slate-400 truncate">{chat.lastMessage}</p>
+                          {chat.unread > 0 && (
+                            <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                              {chat.unread}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </ScrollArea>
       </div>

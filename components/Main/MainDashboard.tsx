@@ -1,11 +1,14 @@
+// components/MainDashboard.jsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TopNavigation } from "./TopNavigation";
 import { LeftSidebar } from "./LeftSidebar";
 import { ChatSection } from "./ChatSection";
 import { RightSidebar } from "./RightSidebar";
 import { MobileSidebar } from "./MobileSidebar";
+import { useSocket } from "../../hooks/useSocket";
+
 
 export function MainDashboard() {
   const [activeTab, setActiveTab] = useState("chats");
@@ -13,11 +16,54 @@ export function MainDashboard() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
   const [selectedSetting, setSelectedSetting] = useState<string | null>("profile");
+  const currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "{}");
+  const { socket, isConnected } = useSocket(currentUser?.id, null); // Pass null for groupId initially
+
+  useEffect(() => {
+    if (!socket || !isConnected || !currentUser.id) return;
+
+    // Join user room
+    socket.emit("joinUser", currentUser.id);
+
+    // socket.emit("joinGroup", currentUser.id);
+
+
+    // Fetch and join group rooms
+    // const joinUserGroups = async () => {
+    //   try {
+    //     // Replace with your API call or Prisma query to get user's groups
+    //     const groups = await prisma.userGroup.findMany({
+    //       where: { userId: currentUser.id },
+    //       select: { groupId: true },
+    //     });
+    //     groups.forEach((group) => {
+    //       socket.emit("joinGroup", group.groupId);
+    //       console.log(`Joined group room: group:${group.groupId}`);
+    //     });
+    //   } catch (error) {
+    //     console.error("Error fetching user groups:", error);
+    //   }
+    // };
+
+    // joinUserGroups();
+
+    // Cleanup: Leave all rooms on unmount
+    // return () => {
+    //   socket.emit("leaveUser", currentUser.id);
+
+    // };
+  }, [socket, isConnected, currentUser.id]);
 
   const handleSettingsClick = () => {
     setActiveTab("settings");
     setSelectedSetting("profile"); // Default to profile view
   };
+
+  if (!currentUser.id) {
+    // Redirect to login if no user is authenticated
+    window.location.href = "/";
+    return null;
+  }
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -41,6 +87,7 @@ export function MainDashboard() {
           onToggleRightPanel={() => setIsRightCollapsed((v) => !v)}
           selectedSetting={selectedSetting}
           onSettingSelect={setSelectedSetting}
+          socket={socket}
         />
         <div className="hidden xl:block">
           <RightSidebar selectedChat={selectedChat} collapsed={isRightCollapsed} onClose={() => setIsRightCollapsed(true)} />
@@ -61,6 +108,7 @@ export function MainDashboard() {
           isMobile={true}
           selectedSetting={selectedSetting}
           onSettingSelect={setSelectedSetting}
+          socket={socket}
         />
       </div>
     </div>
