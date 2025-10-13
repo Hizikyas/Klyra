@@ -110,14 +110,17 @@ export function ChatSection({
 
   // Load messages for selected chat
   useEffect(() => {
-
-    if (!selectedChat) return;
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
+    if (!token || !selectedChat) return;
 
     const fetchMessages = async () => {
       try {
         const url = new URL('http://localhost:4000/v1/messages');
         url.searchParams.set('recipientId', selectedChat);
         const res = await fetch(url.toString(), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
           credentials: 'include',
         });
         const data = await res.json();
@@ -214,13 +217,17 @@ export function ChatSection({
 
   const handleSendMessage = async () => {
     if (!message.trim() || !selectedChat) return;
-    
+
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
+    if (!token) return;
+
     try {
       const res = await fetch('http://localhost:4000/v1/messages', {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           content: message,
