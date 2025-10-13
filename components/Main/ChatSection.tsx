@@ -55,6 +55,7 @@ export function ChatSection({
   const [messages, setMessages] = useState<Message[]>([]);
   const currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "{}");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Hydrate chats from sessionStorage on load
   useEffect(() => {
@@ -133,7 +134,7 @@ export function ChatSection({
             isOwn: m.senderId === currentUser.id,
           }));
           setMessages(mapped);
-          setTimeout(() => scrollToBottom(), 0);
+          setTimeout(() => scrollToBottom(), 100);
         }
       } catch (e) {
         console.error('Failed to load messages', e);
@@ -164,27 +165,7 @@ export function ChatSection({
           isOwn: newMessage.senderId === currentUser.id,
         },
       ]);
-      scrollToBottom();
-
-      // ensure chat exists in list
-      setChats((prev) => {
-        if (!selectedChat) return prev;
-        const exists = prev.some((c) => c.id === selectedChat);
-        if (exists) return prev;
-        const name = newMessage.sender?.fullname || newMessage.sender?.username || 'User';
-        return [
-          {
-            id: selectedChat,
-            name,
-            lastMessage: newMessage.content || '',
-            timestamp: '',
-            unread: 0,
-            avatar: undefined,
-            online: false,
-          },
-          ...prev,
-        ];
-      });
+      setTimeout(() => scrollToBottom(), 100);
     };
 
     const handleMessageUpdated = (updatedMessage: any) => {
@@ -208,10 +189,15 @@ export function ChatSection({
     };
   }, [socket, currentUser.id, selectedChat]);
 
-  // Scroll to bottom when new message arrives
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Scroll to bottom function
   const scrollToBottom = () => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   };
 
@@ -247,26 +233,8 @@ export function ChatSection({
             isOwn: true,
           },
         ]);
-        // ensure chat exists in list
-        setChats((prev) => {
-          const exists = prev.some((c) => c.id === selectedChat);
-          if (exists) return prev;
-          const chatMeta = chats.find((c) => c.id === selectedChat);
-          return [
-            chatMeta || {
-              id: selectedChat,
-              name: 'Conversation',
-              lastMessage: m.content || '',
-              timestamp: '',
-              unread: 0,
-              avatar: undefined,
-              online: false,
-            },
-            ...prev,
-          ];
-        });
         setMessage('');
-        scrollToBottom();
+        setTimeout(() => scrollToBottom(), 100);
       }
     } catch (e) {
       console.error('Failed to send message', e);
@@ -318,7 +286,7 @@ export function ChatSection({
         <div className="p-4 border-b border-slate-700/50">
           <h2 className="text-lg font-semibold text-white">Messages</h2>
         </div>
-        <ScrollArea className="h-[calc(100vh-8rem)]">
+           <ScrollArea className="h-[calc(100vh-8rem)] scrollbar-custom">
           <div className="p-2">
             {chats.length === 0 ? (
               <div className="p-4 text-slate-400 text-center">
@@ -431,8 +399,9 @@ export function ChatSection({
               </div>
             </div>
 
-            <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-              <div className="space-y-4">
+            {/* Fixed ScrollArea for messages */}
+            <ScrollArea className="flex-1 scrollbar-custom">
+              <div className="p-4 space-y-4 min-h-full">
                 {messages.map((msg) => (
                   <div key={msg.id} className={cn("flex", msg.isOwn ? "justify-end" : "justify-start")}>
                     <div
@@ -453,6 +422,8 @@ export function ChatSection({
                     </div>
                   </div>
                 ))}
+                {/* Invisible element to scroll to */}
+                <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
 
