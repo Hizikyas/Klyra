@@ -53,21 +53,111 @@ export function ChatSection({
   const [message, setMessage] = useState("");
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [messagesCache, setMessagesCache] = useState<Record<string, Message[]>>({});
   const currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "{}");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Hydrate chats from sessionStorage on load
-  useEffect(() => {
-    try {
-      const stored = typeof window !== 'undefined' ? sessionStorage.getItem('recentChats') : null;
-      if (stored) {
-        const parsed = JSON.parse(stored) as ChatItem[];
-        if (Array.isArray(parsed)) setChats(parsed);
+  // Ensure a chat item exists/updated and moved to top
+  const upsertChatPreview = (
+    chatId: string,
+    opts: {
+      name?: string;
+      avatar?: string;
+      lastMessage?: string;
+      timestamp?: string;
+      incrementUnread?: boolean;
+      resetUnread?: boolean;
+    } = {}
+  ) => {
+    setChats((prev) => {
+      const existingIndex = prev.findIndex((c) => c.id === chatId);
+      const timestamp = opts.timestamp ?? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (existingIndex !== -1) {
+        const existing = prev[existingIndex];
+        const updated: ChatItem = {
+          ...existing,
+          name: opts.name ?? existing.name,
+          avatar: opts.avatar ?? existing.avatar,
+          lastMessage: opts.lastMessage ?? existing.lastMessage,
+          timestamp,
+          unread: opts.resetUnread
+            ? 0
+            : opts.incrementUnread
+            ? (existing.unread || 0) + 1
+            : existing.unread,
+        };
+        const next = [updated, ...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1)];
+        return next;
       }
-    } catch (e) {
-      // ignore
-    }
+      const created: ChatItem = {
+        id: chatId,
+        name: opts.name || 'User',
+        lastMessage: opts.lastMessage || '',
+        timestamp,
+        unread: opts.resetUnread ? 0 : opts.incrementUnread ? 1 : 0,
+        avatar: opts.avatar,
+        online: false,
+      };
+      return [created, ...prev];
+    });
+  };
+
+  // Load conversations from API and hydrate from sessionStorage
+  useEffect(() => {
+    const loadConversations = async () => {
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
+      if (!token) return;
+
+      try {
+        // First try to load from sessionStorage for quick display
+        const stored = typeof window !== 'undefined' ? sessionStorage.getItem('recentChats') : null;
+        if (stored) {
+          const parsed = JSON.parse(stored) as ChatItem[];
+          if (Array.isArray(parsed)) setChats(parsed);
+        }
+
+        // Then fetch fresh data from API
+        const res = await fetch('http://localhost:4000/v1/messages/conversations', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data?.conversations)) {
+            const mappedChats: ChatItem[] = data.conversations.map((conv: any) => ({
+              id: conv.participantId,
+              name: conv.participant?.username || 'User',
+              lastMessage: conv.lastMessage?.content || '',
+              timestamp: conv.lastMessage?.createdAt 
+                ? new Date(conv.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : '',
+              unread: conv.unreadCount || 0,
+              avatar: conv.participant?.avatar,
+              online: false,
+            }));
+            setChats(mappedChats);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load conversations', e);
+        // Fallback to sessionStorage if API fails
+        try {
+          const stored = typeof window !== 'undefined' ? sessionStorage.getItem('recentChats') : null;
+          if (stored) {
+            const parsed = JSON.parse(stored) as ChatItem[];
+            if (Array.isArray(parsed)) setChats(parsed);
+          }
+        } catch (storageError) {
+          // ignore
+        }
+      }
+    };
+
+    loadConversations();
   }, []);
 
   // Persist chats to sessionStorage whenever they change
@@ -109,10 +199,17 @@ export function ChatSection({
     return () => window.removeEventListener('klyra:addChatFromSearch', onAddChatFromSearch as EventListener);
   }, [onChatSelect]);
 
-  // Load messages for selected chat
+  // Load messages for selected chat with caching
   useEffect(() => {
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
     if (!token || !selectedChat) return;
+
+    // Check if messages are already cached
+    if (messagesCache[selectedChat]) {
+      setMessages(messagesCache[selectedChat]);
+      setTimeout(() => scrollToBottom(), 100);
+      return;
+    }
 
     const fetchMessages = async () => {
       try {
@@ -133,8 +230,23 @@ export function ChatSection({
             timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             isOwn: m.senderId === currentUser.id,
           }));
+          
+          // Cache the messages
+          setMessagesCache(prev => ({ ...prev, [selectedChat]: mapped }));
           setMessages(mapped);
           setTimeout(() => scrollToBottom(), 100);
+
+          // Update chat preview (last message and timestamp) - only if we have messages
+          const last = mapped[mapped.length - 1];
+          if (last) {
+            upsertChatPreview(selectedChat, {
+              name: data?.recipient?.username || selectedChatObj?.name,
+              avatar: data?.recipient?.avatar || selectedChatObj?.avatar,
+              lastMessage: last.content,
+              timestamp: last.timestamp,
+              resetUnread: true,
+            });
+          }
         }
       } catch (e) {
         console.error('Failed to load messages', e);
@@ -142,7 +254,13 @@ export function ChatSection({
     };
 
     fetchMessages();
-  }, [selectedChat, currentUser.id]);
+  }, [selectedChat, currentUser.id, messagesCache]);
+
+  // Reset unread count when opening a chat
+  useEffect(() => {
+    if (!selectedChat) return;
+    upsertChatPreview(selectedChat, { resetUnread: true });
+  }, [selectedChat]);
 
   // Handle incoming messages (filter for current chat)
   useEffect(() => {
@@ -155,17 +273,35 @@ export function ChatSection({
 
       if (!selectedChat || !isForThisChat) return;
 
-      setMessages((prev) => [
+      const newMessageObj = {
+        id: newMessage.id,
+        sender: newMessage.senderId === currentUser.id ? 'You' : newMessage.sender?.username || 'Unknown',
+        content: newMessage.content || newMessage.mediaUrl || 'Media',
+        timestamp: new Date(newMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isOwn: newMessage.senderId === currentUser.id,
+      };
+
+      setMessages((prev) => [...prev, newMessageObj]);
+      
+      // Update cache for current chat
+      setMessagesCache((prev) => ({
         ...prev,
-        {
-          id: newMessage.id,
-          sender: newMessage.senderId === currentUser.id ? 'You' : newMessage.sender?.username || 'Unknown',
-          content: newMessage.content || newMessage.mediaUrl || 'Media',
-          timestamp: new Date(newMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isOwn: newMessage.senderId === currentUser.id,
-        },
-      ]);
+        [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
+      }));
+      
       setTimeout(() => scrollToBottom(), 100);
+
+      // Update chat preview for the other participant
+      const otherUserId = newMessage.senderId === currentUser.id ? newMessage.recipientId : newMessage.senderId;
+      const otherUserName = newMessage.senderId === currentUser.id ? newMessage.recipient?.username : newMessage.sender?.username;
+      const otherUserAvatar = newMessage.senderId === currentUser.id ? newMessage.recipient?.avatar : newMessage.sender?.avatar;
+      upsertChatPreview(otherUserId, {
+        name: otherUserName,
+        avatar: otherUserAvatar,
+        lastMessage: newMessage.content || newMessage.mediaUrl || 'Media',
+        timestamp: new Date(newMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        incrementUnread: otherUserId !== selectedChat,
+      });
     };
 
     const handleMessageUpdated = (updatedMessage: any) => {
@@ -223,18 +359,33 @@ export function ChatSection({
       const data = await res.json();
       if (data?.message) {
         const m = data.message;
-        setMessages((prev) => [
+        const newMessageObj = {
+          id: m.id,
+          sender: 'You',
+          content: m.content || m.mediaUrl || 'Media',
+          timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isOwn: true,
+        };
+        
+        setMessages((prev) => [...prev, newMessageObj]);
+        
+        // Update cache for current chat
+        setMessagesCache((prev) => ({
           ...prev,
-          {
-            id: m.id,
-            sender: 'You',
-            content: m.content || m.mediaUrl || 'Media',
-            timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            isOwn: true,
-          },
-        ]);
+          [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
+        }));
+        
         setMessage('');
         setTimeout(() => scrollToBottom(), 100);
+
+        // Update chat preview for recipient
+        upsertChatPreview(selectedChat, {
+          name: selectedChatObj?.name,
+          avatar: selectedChatObj?.avatar,
+          lastMessage: m.content || m.mediaUrl || 'Media',
+          timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          resetUnread: true,
+        });
       }
     } catch (e) {
       console.error('Failed to send message', e);
