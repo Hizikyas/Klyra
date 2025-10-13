@@ -91,7 +91,7 @@ export function ChatSection({
           : [
               {
                 id: u.id,
-                name: u.name || u.username || 'User',
+                name: u.username || 'User',
                 lastMessage: u.lastMessage?.content || '',
                 timestamp: '',
                 unread: 0,
@@ -110,24 +110,21 @@ export function ChatSection({
 
   // Load messages for selected chat
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
-    if (!token || !selectedChat) return;
+
+    if (!selectedChat) return;
 
     const fetchMessages = async () => {
       try {
         const url = new URL('http://localhost:4000/v1/messages');
         url.searchParams.set('recipientId', selectedChat);
         const res = await fetch(url.toString(), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
           credentials: 'include',
         });
         const data = await res.json();
         if (Array.isArray(data?.messages)) {
           const mapped: Message[] = data.messages.map((m: any) => ({
             id: m.id,
-            sender: m.senderId === currentUser.id ? 'You' : m.sender?.username || m.sender?.fullname || 'User',
+            sender: m.senderId === currentUser.id ? 'You' : m.sender?.username ||  'User',
             content: m.content || m.mediaUrl || 'Media',
             timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             isOwn: m.senderId === currentUser.id,
@@ -217,17 +214,13 @@ export function ChatSection({
 
   const handleSendMessage = async () => {
     if (!message.trim() || !selectedChat) return;
-
-    const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
-    if (!token) return;
-
+    
     try {
       const res = await fetch('http://localhost:4000/v1/messages', {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           content: message,

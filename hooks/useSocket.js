@@ -12,11 +12,9 @@ export const useSocket = (userId, groupId) => {
 
   useEffect(() => {
     // Initialize Socket.IO client
-    const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
     const newSocket = io(SOCKET_URL, {
       withCredentials: true,
       transports: ["websocket"], // avoid polling to bypass CORS cookies constraint
-      auth: { userId, token },
     });
 
     socketRef.current = newSocket;
