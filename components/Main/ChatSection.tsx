@@ -625,14 +625,14 @@ export function ChatSection({
                       <div key={msg.id} className={cn("flex", msg.isOwn ? "justify-end" : "justify-start", "my-2")}> {/* Added my-2 for vertical spacing */}
                         <div
                           className={cn(
-                            "max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ",
+                            "max-w-xs lg:max-w-md px-4 py-2 rounded-2xl flex gap-4",
                             msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
                           )}
                         >
                           <p className="text-sm">{msg.content}</p>
                           <p
                             className={cn(
-                              "text-xs mt-1",
+                              "text-[0.7rem] mt-1 justify-end",
                               msg.isOwn ? "text-purple-200" : "text-slate-400"
                             )}
                           >
