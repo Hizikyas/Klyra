@@ -37,6 +37,7 @@ interface Message {
   sender: string;
   content: string;
   timestamp: string;
+  createdAt: string; // Store raw date string for grouping
   isOwn: boolean;
 }
 
@@ -59,10 +60,10 @@ export function ChatSection({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Helper to format timestamp consistently (parse as UTC if no TZ, display in fixed UTC with 12-hour AM/PM)
-  const formatTimestamp = (dateStr?: string | Date): string => {
+  const formatTimestamp = (dateStr?: string | Date, includeDate: boolean = false): string => {
     let dateInput = dateStr;
     if (!dateInput) {
-      dateInput = new Date(); // Default to now if no date provided
+      dateInput = new Date();
     }
     let dateString = typeof dateInput === 'string' ? dateInput : dateInput.toISOString();
     // Append 'Z' if no timezone indicator (assume UTC)
@@ -70,12 +71,46 @@ export function ChatSection({
       dateString += 'Z';
     }
     const date = new Date(dateString);
+    if (includeDate) {
+      return date.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: 'UTC',
+      });
+    }
     return date.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
-      timeZone: 'UTC', // Fixed timezone for consistency across clients
+      timeZone: 'UTC',
     });
+  };
+
+  // Group messages by date for rendering headers
+  const groupMessagesByDate = (messages: Message[]) => {
+    const grouped: { date: string; messages: Message[] }[] = [];
+    let currentDate = '';
+    let currentGroup: Message[] = [];
+
+    messages.forEach((msg) => {
+      const msgDate = formatTimestamp(msg.createdAt, true);
+      if (msgDate !== currentDate) {
+        if (currentGroup.length > 0) {
+          grouped.push({ date: currentDate, messages: currentGroup });
+        }
+        currentDate = msgDate;
+        currentGroup = [msg];
+      } else {
+        currentGroup.push(msg);
+      }
+    });
+
+    if (currentGroup.length > 0) {
+      grouped.push({ date: currentDate, messages: currentGroup });
+    }
+
+    return grouped;
   };
 
   // Ensure a chat item exists/updated and moved to top
@@ -245,9 +280,10 @@ export function ChatSection({
         if (Array.isArray(data?.messages)) {
           const mapped: Message[] = data.messages.map((m: any) => ({
             id: m.id,
-            sender: m.senderId === currentUser.id ? 'You' : m.sender?.username ||  'User',
+            sender: m.senderId === currentUser.id ? 'You' : m.sender?.username || 'User',
             content: m.content || m.mediaUrl || 'Media',
             timestamp: formatTimestamp(m.createdAt),
+            createdAt: m.createdAt, // Store raw date for grouping
             isOwn: m.senderId === currentUser.id,
           }));
           
@@ -298,6 +334,7 @@ export function ChatSection({
         sender: newMessage.senderId === currentUser.id ? 'You' : newMessage.sender?.username || 'Unknown',
         content: newMessage.content || newMessage.mediaUrl || 'Media',
         timestamp: formatTimestamp(newMessage.createdAt),
+        createdAt: newMessage.createdAt,
         isOwn: newMessage.senderId === currentUser.id,
       };
 
@@ -384,6 +421,7 @@ export function ChatSection({
           sender: 'You',
           content: m.content || m.mediaUrl || 'Media',
           timestamp: formatTimestamp(m.createdAt),
+          createdAt: m.createdAt,
           isOwn: true,
         };
         
@@ -445,6 +483,7 @@ export function ChatSection({
   }
 
   const selectedChatObj = chats.find((c) => c.id === selectedChat);
+  const groupedMessages = groupMessagesByDate(messages);
 
   return (
     <div className="flex-1 flex">
@@ -570,30 +609,40 @@ export function ChatSection({
               </div>
             </div>
 
-            {/* Fixed ScrollArea for messages */}
             <ScrollArea className="flex-1 scrollbar-custom">
               <div className="p-4 space-y-4 min-h-full">
-                {messages.map((msg) => (
-                  <div key={msg.id} className={cn("flex", msg.isOwn ? "justify-end" : "justify-start")}>
-                    <div
-                      className={cn(
-                        "max-w-xs lg:max-w-md px-4 py-2 rounded-2xl",
-                        msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
-                      )}
-                    >
-                      <p className="text-sm">{msg.content}</p>
-                      <p
-                        className={cn(
-                          "text-xs mt-1",
-                          msg.isOwn ? "text-purple-200" : "text-slate-400"
-                        )}
+                {groupedMessages.map((group, index) => (
+                  <div key={group.date || index}>
+                    {group.date && (
+                      <div
+                        className="sticky top-0 z-10 bg-slate-800/80 backdrop-blur-sm text-slate-300 text-center py-2 rounded-lg mx-auto w-fit px-4 mb-4"
+                        style={{ minWidth: '120px' }}
                       >
-                        {msg.timestamp}
-                      </p>
-                    </div>
+                        <span className="text-sm font-medium">{group.date}</span>
+                      </div>
+                    )}
+                    {group.messages.map((msg) => (
+                      <div key={msg.id} className={cn("flex", msg.isOwn ? "justify-end" : "justify-start")}>
+                        <div
+                          className={cn(
+                            "max-w-xs lg:max-w-md px-4 py-2 rounded-2xl",
+                            msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
+                          )}
+                        >
+                          <p className="text-sm">{msg.content}</p>
+                          <p
+                            className={cn(
+                              "text-xs mt-1",
+                              msg.isOwn ? "text-purple-200" : "text-slate-400"
+                            )}
+                          >
+                            {msg.timestamp}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ))}
-                {/* Invisible element to scroll to */}
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
