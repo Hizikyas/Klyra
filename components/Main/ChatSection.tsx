@@ -58,6 +58,26 @@ export function ChatSection({
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Helper to format timestamp consistently (parse as UTC if no TZ, display in fixed UTC with 12-hour AM/PM)
+  const formatTimestamp = (dateStr?: string | Date): string => {
+    let dateInput = dateStr;
+    if (!dateInput) {
+      dateInput = new Date(); // Default to now if no date provided
+    }
+    let dateString = typeof dateInput === 'string' ? dateInput : dateInput.toISOString();
+    // Append 'Z' if no timezone indicator (assume UTC)
+    if (!dateString.endsWith('Z') && !/[\+\-]\d{2}:\d{2}$/.test(dateString)) {
+      dateString += 'Z';
+    }
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'UTC', // Fixed timezone for consistency across clients
+    });
+  };
+
   // Ensure a chat item exists/updated and moved to top
   const upsertChatPreview = (
     chatId: string,
@@ -72,7 +92,7 @@ export function ChatSection({
   ) => {
     setChats((prev) => {
       const existingIndex = prev.findIndex((c) => c.id === chatId);
-      const timestamp = opts.timestamp ?? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const timestamp = opts.timestamp ?? formatTimestamp();
       if (existingIndex !== -1) {
         const existing = prev[existingIndex];
         const updated: ChatItem = {
@@ -133,7 +153,7 @@ export function ChatSection({
               name: conv.participant?.username || 'User',
               lastMessage: conv.lastMessage?.content || '',
               timestamp: conv.lastMessage?.createdAt 
-                ? new Date(conv.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                ? formatTimestamp(conv.lastMessage.createdAt)
                 : '',
               unread: conv.unreadCount || 0,
               avatar: conv.participant?.avatar,
@@ -227,7 +247,7 @@ export function ChatSection({
             id: m.id,
             sender: m.senderId === currentUser.id ? 'You' : m.sender?.username ||  'User',
             content: m.content || m.mediaUrl || 'Media',
-            timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            timestamp: formatTimestamp(m.createdAt),
             isOwn: m.senderId === currentUser.id,
           }));
           
@@ -277,7 +297,7 @@ export function ChatSection({
         id: newMessage.id,
         sender: newMessage.senderId === currentUser.id ? 'You' : newMessage.sender?.username || 'Unknown',
         content: newMessage.content || newMessage.mediaUrl || 'Media',
-        timestamp: new Date(newMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: formatTimestamp(newMessage.createdAt),
         isOwn: newMessage.senderId === currentUser.id,
       };
 
@@ -299,7 +319,7 @@ export function ChatSection({
         name: otherUserName,
         avatar: otherUserAvatar,
         lastMessage: newMessage.content || newMessage.mediaUrl || 'Media',
-        timestamp: new Date(newMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: formatTimestamp(newMessage.createdAt),
         incrementUnread: otherUserId !== selectedChat,
       });
     };
@@ -363,7 +383,7 @@ export function ChatSection({
           id: m.id,
           sender: 'You',
           content: m.content || m.mediaUrl || 'Media',
-          timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: formatTimestamp(m.createdAt),
           isOwn: true,
         };
         
@@ -383,7 +403,7 @@ export function ChatSection({
           name: selectedChatObj?.name,
           avatar: selectedChatObj?.avatar,
           lastMessage: m.content || m.mediaUrl || 'Media',
-          timestamp: new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          timestamp: formatTimestamp(m.createdAt),
           resetUnread: true,
         });
       }
@@ -437,7 +457,7 @@ export function ChatSection({
         <div className="p-4 border-b border-slate-700/50">
           <h2 className="text-lg font-semibold text-white">Messages</h2>
         </div>
-           <ScrollArea className="h-[calc(100vh-8rem)] scrollbar-custom">
+        <ScrollArea className="h-[calc(100vh-8rem)] scrollbar-custom">
           <div className="p-2">
             {chats.length === 0 ? (
               <div className="p-4 text-slate-400 text-center">
