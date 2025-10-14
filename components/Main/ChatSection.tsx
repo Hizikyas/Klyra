@@ -73,7 +73,7 @@ export function ChatSection({
     const date = new Date(dateString);
     if (includeDate) {
       return date.toLocaleDateString('en-US', {
-        month: 'long',
+        month: 'short', // Use short month names (e.g., "Oct" instead of "October")
         day: 'numeric',
         year: 'numeric',
         timeZone: 'UTC',
@@ -610,22 +610,22 @@ export function ChatSection({
             </div>
 
             <ScrollArea className="flex-1 scrollbar-custom">
-              <div className="p-4 space-y-4 min-h-full">
+              <div className="p-4 space-y-6 min-h-full"> {/* Increased space-y-6 for more spacing */}
                 {groupedMessages.map((group, index) => (
                   <div key={group.date || index}>
                     {group.date && (
                       <div
-                        className="sticky top-0 z-10 bg-slate-800/80 backdrop-blur-sm text-slate-300 text-center py-2 rounded-lg mx-auto w-fit px-4 mb-4"
+                        className="sticky top-0 z-10 bg-transparent text-slate-300 text-center py-2 rounded-lg mx-auto w-fit px-4 mb-4"
                         style={{ minWidth: '120px' }}
                       >
                         <span className="text-sm font-medium">{group.date}</span>
                       </div>
                     )}
                     {group.messages.map((msg) => (
-                      <div key={msg.id} className={cn("flex", msg.isOwn ? "justify-end" : "justify-start")}>
+                      <div key={msg.id} className={cn("flex", msg.isOwn ? "justify-end" : "justify-start", "my-2")}> {/* Added my-2 for vertical spacing */}
                         <div
                           className={cn(
-                            "max-w-xs lg:max-w-md px-4 py-2 rounded-2xl",
+                            "max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ",
                             msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
                           )}
                         >
