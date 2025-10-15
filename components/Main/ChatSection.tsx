@@ -56,6 +56,7 @@ export function ChatSection({
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesCache, setMessagesCache] = useState<Record<string, Message[]>>({});
   const [loading, setLoading] = useState(false); // New state for loading indicator
+  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false); // New state to control scrolling
   const currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "{}");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -262,6 +263,7 @@ export function ChatSection({
 
     if (!messagesCache[selectedChat]) {
       setLoading(true); // Start loading when fetching new messages
+      setShouldScrollToBottom(true); // Set flag to scroll to bottom on initial load
     }
 
     const fetchMessages = async () => {
@@ -288,7 +290,6 @@ export function ChatSection({
           // Cache the messages
           setMessagesCache(prev => ({ ...prev, [selectedChat]: mapped }));
           setMessages(mapped);
-          setTimeout(() => scrollToBottom(), 100);
 
           // Update chat preview (last message and timestamp) - only if we have messages
           const last = mapped[mapped.length - 1];
@@ -346,7 +347,7 @@ export function ChatSection({
         [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
       }));
       
-      setTimeout(() => scrollToBottom(), 100);
+      setShouldScrollToBottom(true); // Set flag to scroll to bottom on new message
 
       // Update chat preview for the other participant
       const otherUserId = newMessage.senderId === currentUser.id ? newMessage.recipientId : newMessage.senderId;
@@ -382,17 +383,31 @@ export function ChatSection({
     };
   }, [socket, currentUser.id, selectedChat]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change based on shouldScrollToBottom
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Scroll to bottom function
-  const scrollToBottom = () => {
-    if (messagesEndRef.current) {
+    if (shouldScrollToBottom && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+      setShouldScrollToBottom(false); // Reset flag after scrolling
     }
-  };
+  }, [messages, shouldScrollToBottom]);
+
+  // Detect scroll position to prevent auto-scroll if user has scrolled up
+  useEffect(() => {
+    const scrollArea = scrollAreaRef.current;
+    if (!scrollArea || !selectedChat) return;
+
+    const handleScroll = () => {
+      if (scrollArea) {
+        const isAtBottom = scrollArea.scrollHeight - scrollArea.scrollTop === scrollArea.clientHeight;
+        if (!isAtBottom) {
+          setShouldScrollToBottom(false); // Disable auto-scroll if user scrolls up
+        }
+      }
+    };
+
+    scrollArea.addEventListener("scroll", handleScroll);
+    return () => scrollArea.removeEventListener("scroll", handleScroll);
+  }, [selectedChat]);
 
   const handleSendMessage = async () => {
     if (!message.trim() || !selectedChat) return;
@@ -434,7 +449,7 @@ export function ChatSection({
         }));
         
         setMessage('');
-        setTimeout(() => scrollToBottom(), 100);
+        setShouldScrollToBottom(true); // Scroll to bottom after sending a message
 
         // Update chat preview for recipient
         upsertChatPreview(selectedChat, {
@@ -609,7 +624,7 @@ export function ChatSection({
               </div>
             </div>
 
-            <ScrollArea className="flex-1 scrollbar-custom">
+            <ScrollArea ref={scrollAreaRef} className="flex-1 scrollbar-custom">
               <div className="p-4 space-y-6 min-h-full">
                 {loading && !messagesCache[selectedChat] ? (
                   <div className="flex justify-center items-center h-full">
