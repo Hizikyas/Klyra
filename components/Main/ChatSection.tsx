@@ -55,8 +55,8 @@ export function ChatSection({
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesCache, setMessagesCache] = useState<Record<string, Message[]>>({});
-  const [loading, setLoading] = useState(false); // New state for loading indicator
-  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false); // New state to control scrolling
+  const [loading, setLoading] = useState(false); // State for loading indicator
+  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false); // Control scrolling
   const currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "{}");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -68,14 +68,13 @@ export function ChatSection({
       dateInput = new Date();
     }
     let dateString = typeof dateInput === 'string' ? dateInput : dateInput.toISOString();
-    // Append 'Z' if no timezone indicator (assume UTC)
     if (!dateString.endsWith('Z') && !/[\+\-]\d{2}:\d{2}$/.test(dateString)) {
       dateString += 'Z';
     }
     const date = new Date(dateString);
     if (includeDate) {
       return date.toLocaleDateString('en-US', {
-        month: 'short', // Use short month names (e.g., "Oct" instead of "October")
+        month: 'short',
         day: 'numeric',
         year: 'numeric',
         timeZone: 'UTC',
@@ -167,14 +166,12 @@ export function ChatSection({
       if (!token) return;
 
       try {
-        // First try to load from sessionStorage for quick display
         const stored = typeof window !== 'undefined' ? sessionStorage.getItem('recentChats') : null;
         if (stored) {
           const parsed = JSON.parse(stored) as ChatItem[];
           if (Array.isArray(parsed)) setChats(parsed);
         }
 
-        // Then fetch fresh data from API
         const res = await fetch('http://localhost:4000/v1/messages/conversations', {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -189,9 +186,7 @@ export function ChatSection({
               id: conv.participantId,
               name: conv.participant?.username || 'User',
               lastMessage: conv.lastMessage?.content || '',
-              timestamp: conv.lastMessage?.createdAt 
-                ? formatTimestamp(conv.lastMessage.createdAt)
-                : '',
+              timestamp: conv.lastMessage?.createdAt ? formatTimestamp(conv.lastMessage.createdAt) : '',
               unread: conv.unreadCount || 0,
               avatar: conv.participant?.avatar,
               online: false,
@@ -201,7 +196,6 @@ export function ChatSection({
         }
       } catch (e) {
         console.error('Failed to load conversations', e);
-        // Fallback to sessionStorage if API fails
         try {
           const stored = typeof window !== 'undefined' ? sessionStorage.getItem('recentChats') : null;
           if (stored) {
@@ -262,8 +256,8 @@ export function ChatSection({
     if (!token || !selectedChat) return;
 
     if (!messagesCache[selectedChat]) {
-      setLoading(true); // Start loading when fetching new messages
-      setShouldScrollToBottom(true); // Set flag to scroll to bottom on initial load
+      setLoading(true); // Show loader when fetching new messages
+      setShouldScrollToBottom(true); // Scroll to bottom on initial load
     }
 
     const fetchMessages = async () => {
@@ -283,15 +277,13 @@ export function ChatSection({
             sender: m.senderId === currentUser.id ? 'You' : m.sender?.username || 'User',
             content: m.content || m.mediaUrl || 'Media',
             timestamp: formatTimestamp(m.createdAt),
-            createdAt: m.createdAt, // Store raw date for grouping
+            createdAt: m.createdAt,
             isOwn: m.senderId === currentUser.id,
           }));
           
-          // Cache the messages
           setMessagesCache(prev => ({ ...prev, [selectedChat]: mapped }));
           setMessages(mapped);
 
-          // Update chat preview (last message and timestamp) - only if we have messages
           const last = mapped[mapped.length - 1];
           if (last) {
             upsertChatPreview(selectedChat, {
@@ -302,11 +294,14 @@ export function ChatSection({
               resetUnread: true,
             });
           }
+        } else {
+          setMessages([]); // Set empty messages if no data
         }
       } catch (e) {
         console.error('Failed to load messages', e);
+        setMessages([]); // Fallback to empty on error
       } finally {
-        setLoading(false); // Stop loading after fetch completes
+        setLoading(false); // Hide loader after fetch
       }
     };
 
@@ -340,16 +335,12 @@ export function ChatSection({
       };
 
       setMessages((prev) => [...prev, newMessageObj]);
-      
-      // Update cache for current chat
       setMessagesCache((prev) => ({
         ...prev,
         [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
       }));
-      
-      setShouldScrollToBottom(true); // Set flag to scroll to bottom on new message
+      setShouldScrollToBottom(true);
 
-      // Update chat preview for the other participant
       const otherUserId = newMessage.senderId === currentUser.id ? newMessage.recipientId : newMessage.senderId;
       const otherUserName = newMessage.senderId === currentUser.id ? newMessage.recipient?.username : newMessage.sender?.username;
       const otherUserAvatar = newMessage.senderId === currentUser.id ? newMessage.recipient?.avatar : newMessage.sender?.avatar;
@@ -387,7 +378,7 @@ export function ChatSection({
   useEffect(() => {
     if (shouldScrollToBottom && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-      setShouldScrollToBottom(false); // Reset flag after scrolling
+      setShouldScrollToBottom(false);
     }
   }, [messages, shouldScrollToBottom]);
 
@@ -398,9 +389,9 @@ export function ChatSection({
 
     const handleScroll = () => {
       if (scrollArea) {
-        const isAtBottom = scrollArea.scrollHeight - scrollArea.scrollTop === scrollArea.clientHeight;
+        const isAtBottom = scrollArea.scrollHeight - scrollArea.scrollTop <= scrollArea.clientHeight + 1; // Allow small tolerance
         if (!isAtBottom) {
-          setShouldScrollToBottom(false); // Disable auto-scroll if user scrolls up
+          setShouldScrollToBottom(false);
         }
       }
     };
@@ -441,17 +432,13 @@ export function ChatSection({
         };
         
         setMessages((prev) => [...prev, newMessageObj]);
-        
-        // Update cache for current chat
         setMessagesCache((prev) => ({
           ...prev,
           [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
         }));
-        
         setMessage('');
-        setShouldScrollToBottom(true); // Scroll to bottom after sending a message
+        setShouldScrollToBottom(true);
 
-        // Update chat preview for recipient
         upsertChatPreview(selectedChat, {
           name: selectedChatObj?.name,
           avatar: selectedChatObj?.avatar,
@@ -626,12 +613,18 @@ export function ChatSection({
 
             <ScrollArea ref={scrollAreaRef} className="flex-1 scrollbar-custom">
               <div className="p-4 space-y-6 min-h-full">
-                {loading && !messagesCache[selectedChat] ? (
+                {loading ? (
                   <div className="flex justify-center items-center h-full">
                     <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
                   </div>
-                ) : groupedMessages.length === 0 && !loading ? (
+                ) : chats.length === 0 ? (
                   <div className="p-4 text-slate-400 text-center">
+                    <p className="text-sm">No messages yet.</p>
+                    <p className="text-xs mt-1">Start a conversation with your friend.</p>
+                  </div>
+                ) : groupedMessages.length === 0 ? (
+                  <div className="p-4 text-slate-400 text-center">
+                    <img src="/icons/add_user.svg" alt="No messages" className="h-24 w-24 mx-auto mb-4 opacity-50" />
                     <p className="text-sm">No messages yet.</p>
                     <p className="text-xs mt-1">Start a conversation with your friend.</p>
                   </div>
