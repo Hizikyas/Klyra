@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Send, Paperclip, Smile, Video, Phone, MessageCircle, ArrowLeft } from "lucide-react";
+import { Send, Paperclip, Smile, Video, Phone, MessageCircle, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -55,6 +55,7 @@ export function ChatSection({
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesCache, setMessagesCache] = useState<Record<string, Message[]>>({});
+  const [loading, setLoading] = useState(false); // New state for loading indicator
   const currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "{}");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -259,11 +260,8 @@ export function ChatSection({
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
     if (!token || !selectedChat) return;
 
-    // Check if messages are already cached
-    if (messagesCache[selectedChat]) {
-      setMessages(messagesCache[selectedChat]);
-      setTimeout(() => scrollToBottom(), 100);
-      return;
+    if (!messagesCache[selectedChat]) {
+      setLoading(true); // Start loading when fetching new messages
     }
 
     const fetchMessages = async () => {
@@ -306,6 +304,8 @@ export function ChatSection({
         }
       } catch (e) {
         console.error('Failed to load messages', e);
+      } finally {
+        setLoading(false); // Stop loading after fetch completes
       }
     };
 
@@ -610,39 +610,50 @@ export function ChatSection({
             </div>
 
             <ScrollArea className="flex-1 scrollbar-custom">
-              <div className="p-4 space-y-6 min-h-full"> {/* Increased space-y-6 for more spacing */}
-                {groupedMessages.map((group, index) => (
-                  <div key={group.date || index}>
-                    {group.date && (
-                      <div
-                        className="sticky top-0 z-10 bg-transparent text-slate-300 text-center py-2 rounded-lg mx-auto w-fit px-4 mb-4"
-                        style={{ minWidth: '120px' }}
-                      >
-                        <span className="text-sm font-medium">{group.date}</span>
-                      </div>
-                    )}
-                    {group.messages.map((msg) => (
-                      <div key={msg.id} className={cn("flex", msg.isOwn ? "justify-end" : "justify-start", "my-2")}> {/* Added my-2 for vertical spacing */}
+              <div className="p-4 space-y-6 min-h-full">
+                {loading && !messagesCache[selectedChat] ? (
+                  <div className="flex justify-center items-center h-full">
+                    <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+                  </div>
+                ) : groupedMessages.length === 0 && !loading ? (
+                  <div className="p-4 text-slate-400 text-center">
+                    <p className="text-sm">No messages yet.</p>
+                    <p className="text-xs mt-1">Start a conversation with your friend.</p>
+                  </div>
+                ) : (
+                  groupedMessages.map((group, index) => (
+                    <div key={group.date || index}>
+                      {group.date && (
                         <div
-                          className={cn(
-                            "max-w-xs lg:max-w-md px-4 py-2 rounded-2xl flex gap-4",
-                            msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
-                          )}
+                          className="sticky top-0 z-10 bg-transparent text-slate-300 text-center py-2 rounded-lg mx-auto w-fit px-4 mb-4"
+                          style={{ minWidth: '120px' }}
                         >
-                          <p className="text-sm">{msg.content}</p>
-                          <p
+                          <span className="text-sm font-medium">{group.date}</span>
+                        </div>
+                      )}
+                      {group.messages.map((msg) => (
+                        <div key={msg.id} className={cn("flex", msg.isOwn ? "justify-end" : "justify-start", "my-2")}>
+                          <div
                             className={cn(
-                              "text-[0.7rem] mt-1 justify-end",
-                              msg.isOwn ? "text-purple-200" : "text-slate-400"
+                              "max-w-xs lg:max-w-md px-4 py-2 rounded-2xl flex gap-4",
+                              msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
                             )}
                           >
-                            {msg.timestamp}
-                          </p>
+                            <p className="text-sm">{msg.content}</p>
+                            <p
+                              className={cn(
+                                "text-[0.7rem] mt-1 justify-end",
+                                msg.isOwn ? "text-purple-200" : "text-slate-400"
+                              )}
+                            >
+                              {msg.timestamp}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
+                      ))}
+                    </div>
+                  ))
+                )}
                 <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
