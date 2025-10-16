@@ -55,11 +55,13 @@ export function ChatSection({
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesCache, setMessagesCache] = useState<Record<string, Message[]>>({});
-  const [loading, setLoading] = useState(false); // State for loading indicator
+  const [loading, setLoading] = useState(false); // State for loading messages of selected chat
   const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false); // Control scrolling
   const currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "{}");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const userAtBottomRef = useRef(true); // Track whether user is scrolled to bottom
+  const initialLoadRef = useRef(false); // Indicate initial load for a selected chat
 
   // Helper to format timestamp consistently (parse as UTC if no TZ, display in fixed UTC with 12-hour AM/PM)
   const formatTimestamp = (dateStr?: string | Date, includeDate: boolean = false): string => {
@@ -124,11 +126,12 @@ export function ChatSection({
       timestamp?: string;
       incrementUnread?: boolean;
       resetUnread?: boolean;
+      preserveOrder?: boolean;
     } = {}
   ) => {
     setChats((prev) => {
       const existingIndex = prev.findIndex((c) => c.id === chatId);
-      const timestamp = opts.timestamp ?? formatTimestamp();
+      const timestamp = opts.timestamp;
       if (existingIndex !== -1) {
         const existing = prev[existingIndex];
         const updated: ChatItem = {
@@ -136,21 +139,27 @@ export function ChatSection({
           name: opts.name ?? existing.name,
           avatar: opts.avatar ?? existing.avatar,
           lastMessage: opts.lastMessage ?? existing.lastMessage,
-          timestamp,
+          timestamp: timestamp ?? existing.timestamp,
           unread: opts.resetUnread
             ? 0
             : opts.incrementUnread
             ? (existing.unread || 0) + 1
             : existing.unread,
         };
-        const next = [updated, ...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1)];
-        return next;
+        if (opts.preserveOrder) {
+          return [
+            ...prev.slice(0, existingIndex),
+            updated,
+            ...prev.slice(existingIndex + 1),
+          ];
+        }
+        return [updated, ...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1)];
       }
       const created: ChatItem = {
         id: chatId,
         name: opts.name || 'User',
         lastMessage: opts.lastMessage || '',
-        timestamp,
+        timestamp: timestamp ?? formatTimestamp(),
         unread: opts.resetUnread ? 0 : opts.incrementUnread ? 1 : 0,
         avatar: opts.avatar,
         online: false,
@@ -255,9 +264,11 @@ export function ChatSection({
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
     if (!token || !selectedChat) return;
 
-    if (!messagesCache[selectedChat]) {
+    initialLoadRef.current = true;
+    if (messagesCache[selectedChat]) {
+      setMessages(messagesCache[selectedChat]);
+    } else {
       setLoading(true); // Show loader when fetching new messages
-      setShouldScrollToBottom(true); // Scroll to bottom on initial load
     }
 
     const fetchMessages = async () => {
@@ -292,7 +303,12 @@ export function ChatSection({
               lastMessage: last.content,
               timestamp: last.timestamp,
               resetUnread: true,
+              preserveOrder: true,
             });
+          }
+          if (initialLoadRef.current) {
+            setShouldScrollToBottom(true);
+            initialLoadRef.current = false;
           }
         } else {
           setMessages([]); // Set empty messages if no data
@@ -311,7 +327,7 @@ export function ChatSection({
   // Reset unread count when opening a chat
   useEffect(() => {
     if (!selectedChat) return;
-    upsertChatPreview(selectedChat, { resetUnread: true });
+    upsertChatPreview(selectedChat, { resetUnread: true, preserveOrder: true });
   }, [selectedChat]);
 
   // Handle incoming messages (filter for current chat)
@@ -339,7 +355,8 @@ export function ChatSection({
         ...prev,
         [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
       }));
-      setShouldScrollToBottom(true);
+      const shouldAuto = userAtBottomRef.current || newMessage.senderId === currentUser.id;
+      if (shouldAuto) setShouldScrollToBottom(true);
 
       const otherUserId = newMessage.senderId === currentUser.id ? newMessage.recipientId : newMessage.senderId;
       const otherUserName = newMessage.senderId === currentUser.id ? newMessage.recipient?.username : newMessage.sender?.username;
@@ -390,6 +407,7 @@ export function ChatSection({
     const handleScroll = () => {
       if (scrollArea) {
         const isAtBottom = scrollArea.scrollHeight - scrollArea.scrollTop <= scrollArea.clientHeight + 1; // Allow small tolerance
+        userAtBottomRef.current = isAtBottom;
         if (!isAtBottom) {
           setShouldScrollToBottom(false);
         }
@@ -502,6 +520,7 @@ export function ChatSection({
           <div className="p-2">
             {chats.length === 0 ? (
               <div className="p-4 text-slate-400 text-center">
+                <img src="/icons/add_user.svg" alt="No messages" className="h-24 w-24 mx-auto mb-4 opacity-50" />
                 <p className="text-sm">No conversations yet.</p>
                 <p className="text-xs mt-1">Search for a user and start a chat.</p>
               </div>
@@ -617,14 +636,8 @@ export function ChatSection({
                   <div className="flex justify-center items-center h-full">
                     <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
                   </div>
-                ) : chats.length === 0 ? (
-                  <div className="p-4 text-slate-400 text-center">
-                    <p className="text-sm">No messages yet.</p>
-                    <p className="text-xs mt-1">Start a conversation with your friend.</p>
-                  </div>
                 ) : groupedMessages.length === 0 ? (
                   <div className="p-4 text-slate-400 text-center">
-                    <img src="/icons/add_user.svg" alt="No messages" className="h-24 w-24 mx-auto mb-4 opacity-50" />
                     <p className="text-sm">No messages yet.</p>
                     <p className="text-xs mt-1">Start a conversation with your friend.</p>
                   </div>
