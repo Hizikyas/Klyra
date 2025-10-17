@@ -22,7 +22,6 @@ export const useSocket = (userId, groupId) => {
 
     newSocket.on("connect", () => {
       setIsConnected(true);
-      console.log("Connected to server:", newSocket.id);
 
       // Join user room
       if (userId) {

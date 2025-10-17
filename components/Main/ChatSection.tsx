@@ -196,7 +196,8 @@ export function ChatSection({
               name: conv.participant?.username || 'User',
               lastMessage: conv.lastMessage?.content || '',
               timestamp: conv.lastMessage?.createdAt ? formatTimestamp(conv.lastMessage.createdAt) : '',
-              unread: conv.unreadCount || 0,
+              // prefer server unread fields, fallback to 0
+              unread: conv.unreadCount ?? conv.unread ?? 0,
               avatar: conv.participant?.avatar,
               online: false,
             }));
@@ -324,10 +325,35 @@ export function ChatSection({
     fetchMessages();
   }, [selectedChat, currentUser.id, messagesCache]);
 
-  // Reset unread count when opening a chat
+  // Mark messages as read on server and update local preview
+  const markChatAsRead = async (chatId: string) => {
+    try {
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
+      if (!token) return;
+      // adjust endpoint to your backend (example: /v1/messages/mark-read)
+      await fetch('http://localhost:4000/v1/messages/mark-read', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ recipientId: chatId }),
+      });
+    } catch (e) {
+      console.warn('markChatAsRead failed', e);
+    } finally {
+      // ensure UI shows 0 unread even if server call fails
+      upsertChatPreview(chatId, { resetUnread: true, preserveOrder: true });
+    }
+  };
+
+  // Reset unread count when opening a chat (also notify server)
   useEffect(() => {
     if (!selectedChat) return;
+    // optimistic local update so badge disappears immediately
     upsertChatPreview(selectedChat, { resetUnread: true, preserveOrder: true });
+    markChatAsRead(selectedChat);
   }, [selectedChat]);
 
   // Handle incoming messages (filter for current chat)
