@@ -30,6 +30,10 @@ interface ChatItem {
   avatar?: string;
   online: boolean;
   isGroup?: boolean;
+  lastReadMessage?: string; // Last message that was read by the current user
+  lastReadTimestamp?: string; // Timestamp of the last read message
+  lastMessageStatus?: 'sent' | 'delivered' | 'read'; // Status of the last message
+  lastMessageFromCurrentUser?: boolean; // Whether the last message is from current user
 }
 
 interface Message {
@@ -39,6 +43,7 @@ interface Message {
   timestamp: string;
   createdAt: string; // Store raw date string for grouping
   isOwn: boolean;
+  status?: 'sent' | 'delivered' | 'read'; // Message status for own messages
 }
 
 export function ChatSection({
@@ -56,12 +61,10 @@ export function ChatSection({
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesCache, setMessagesCache] = useState<Record<string, Message[]>>({});
   const [loading, setLoading] = useState(false); // State for loading messages of selected chat
-  const [shouldScrollToBottom, setShouldScrollToBottom] = useState(false); // Control scrolling
   const currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "{}");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const userAtBottomRef = useRef(true); // Track whether user is scrolled to bottom
-  const initialLoadRef = useRef(false); // Indicate initial load for a selected chat
+  const [readMessages, setReadMessages] = useState<Set<string>>(new Set());
 
   // Helper to format timestamp consistently (parse as UTC if no TZ, display in fixed UTC with 12-hour AM/PM)
   const formatTimestamp = (dateStr?: string | Date, includeDate: boolean = false): string => {
@@ -127,6 +130,8 @@ export function ChatSection({
       incrementUnread?: boolean;
       resetUnread?: boolean;
       preserveOrder?: boolean;
+      isFromCurrentUser?: boolean; // Whether the message is from current user
+      messageStatus?: 'sent' | 'delivered' | 'read'; // Status of the message
     } = {}
   ) => {
     setChats((prev) => {
@@ -145,6 +150,16 @@ export function ChatSection({
             : opts.incrementUnread
             ? (existing.unread || 0) + 1
             : existing.unread,
+          // Update last read message logic
+          lastReadMessage: opts.isFromCurrentUser 
+            ? opts.lastMessage ?? existing.lastReadMessage
+            : existing.lastReadMessage,
+          lastReadTimestamp: opts.isFromCurrentUser 
+            ? timestamp ?? existing.lastReadTimestamp
+            : existing.lastReadTimestamp,
+          // Update message status
+          lastMessageStatus: opts.messageStatus ?? existing.lastMessageStatus,
+          lastMessageFromCurrentUser: opts.isFromCurrentUser ?? existing.lastMessageFromCurrentUser,
         };
         if (opts.preserveOrder) {
           return [
@@ -163,6 +178,10 @@ export function ChatSection({
         unread: opts.resetUnread ? 0 : opts.incrementUnread ? 1 : 0,
         avatar: opts.avatar,
         online: false,
+        lastReadMessage: opts.isFromCurrentUser ? opts.lastMessage : undefined,
+        lastReadTimestamp: opts.isFromCurrentUser ? timestamp : undefined,
+        lastMessageStatus: opts.messageStatus,
+        lastMessageFromCurrentUser: opts.isFromCurrentUser,
       };
       return [created, ...prev];
     });
@@ -196,8 +215,8 @@ export function ChatSection({
               name: conv.participant?.username || 'User',
               lastMessage: conv.lastMessage?.content || '',
               timestamp: conv.lastMessage?.createdAt ? formatTimestamp(conv.lastMessage.createdAt) : '',
-              // prefer server unread fields, fallback to 0
-              unread: conv.unreadCount ?? conv.unread ?? 0,
+              // Use the actual unread count from server, ensuring it's a number
+              unread: Math.max(0, conv.unreadCount ?? conv.unread ?? 0),
               avatar: conv.participant?.avatar,
               online: false,
             }));
@@ -219,6 +238,11 @@ export function ChatSection({
     };
 
     loadConversations();
+    
+    // Refresh conversations every 30 seconds to keep unread counts accurate
+    const interval = setInterval(loadConversations, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Persist chats to sessionStorage whenever they change
@@ -263,13 +287,19 @@ export function ChatSection({
   // Load messages for selected chat with caching
   useEffect(() => {
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
-    if (!token || !selectedChat) return;
+    if (!token || !selectedChat) {
+      setLoading(false);
+      return;
+    }
 
-    initialLoadRef.current = true;
+    // Reset loading state when chat changes
+    setLoading(true);
+    setMessages([]);
+
     if (messagesCache[selectedChat]) {
       setMessages(messagesCache[selectedChat]);
-    } else {
-      setLoading(true); // Show loader when fetching new messages
+      setLoading(false);
+      return;
     }
 
     const fetchMessages = async () => {
@@ -282,6 +312,11 @@ export function ChatSection({
           },
           credentials: 'include',
         });
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
         const data = await res.json();
         if (Array.isArray(data?.messages)) {
           const mapped: Message[] = data.messages.map((m: any) => ({
@@ -291,6 +326,7 @@ export function ChatSection({
             timestamp: formatTimestamp(m.createdAt),
             createdAt: m.createdAt,
             isOwn: m.senderId === currentUser.id,
+            status: m.senderId === currentUser.id ? (m.status || 'sent') : undefined,
           }));
           
           setMessagesCache(prev => ({ ...prev, [selectedChat]: mapped }));
@@ -305,33 +341,34 @@ export function ChatSection({
               timestamp: last.timestamp,
               resetUnread: true,
               preserveOrder: true,
+              isFromCurrentUser: last.isOwn,
+              messageStatus: last.status,
             });
           }
-          if (initialLoadRef.current) {
-            setShouldScrollToBottom(true);
-            initialLoadRef.current = false;
-          }
         } else {
-          setMessages([]); // Set empty messages if no data
+          // No messages found - this is normal for new conversations
+          setMessages([]);
+          setMessagesCache(prev => ({ ...prev, [selectedChat]: [] }));
         }
       } catch (e) {
         console.error('Failed to load messages', e);
         setMessages([]); // Fallback to empty on error
+        setMessagesCache(prev => ({ ...prev, [selectedChat]: [] }));
       } finally {
-        setLoading(false); // Hide loader after fetch
+        setLoading(false); // Always hide loader after fetch
       }
     };
 
     fetchMessages();
-  }, [selectedChat, currentUser.id, messagesCache]);
+  }, [selectedChat, currentUser.id]); // Removed messagesCache from dependencies to prevent infinite loops
 
   // Mark messages as read on server and update local preview
   const markChatAsRead = async (chatId: string) => {
     try {
       const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
       if (!token) return;
-      // adjust endpoint to your backend (example: /v1/messages/mark-read)
-      await fetch('http://localhost:4000/v1/messages/mark-read', {
+      
+      const response = await fetch('http://localhost:4000/v1/messages/mark-read', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -340,19 +377,46 @@ export function ChatSection({
         },
         body: JSON.stringify({ recipientId: chatId }),
       });
+      
+      if (response.ok) {
+        // Get the last message from the current chat to update lastReadMessage
+        const currentMessages = messagesCache[chatId] || messages;
+        const lastMessage = currentMessages[currentMessages.length - 1];
+        
+        // Only reset unread count if server confirms it was marked as read
+        upsertChatPreview(chatId, { 
+          resetUnread: true, 
+          preserveOrder: true,
+          lastMessage: lastMessage?.content,
+          timestamp: lastMessage?.timestamp,
+          isFromCurrentUser: false, // This is for received messages
+        });
+      } else {
+        console.warn('Failed to mark messages as read on server');
+      }
     } catch (e) {
       console.warn('markChatAsRead failed', e);
-    } finally {
-      // ensure UI shows 0 unread even if server call fails
-      upsertChatPreview(chatId, { resetUnread: true, preserveOrder: true });
     }
+  };
+
+  // Update unread count when messages are read
+  const updateUnreadCount = (chatId: string, messageId: string) => {
+    setChats(prev => prev.map(chat => {
+      if (chat.id === chatId && chat.unread > 0) {
+        return { ...chat, unread: Math.max(0, chat.unread - 1) };
+      }
+      return chat;
+    }));
   };
 
   // Reset unread count when opening a chat (also notify server)
   useEffect(() => {
-    if (!selectedChat) return;
-    // optimistic local update so badge disappears immediately
-    upsertChatPreview(selectedChat, { resetUnread: true, preserveOrder: true });
+    if (!selectedChat) {
+      setLoading(false);
+      setMessages([]);
+      return;
+    }
+    // Mark messages as read on server - this will also update the local unread count
     markChatAsRead(selectedChat);
   }, [selectedChat]);
 
@@ -374,6 +438,7 @@ export function ChatSection({
         timestamp: formatTimestamp(newMessage.createdAt),
         createdAt: newMessage.createdAt,
         isOwn: newMessage.senderId === currentUser.id,
+        status: newMessage.senderId === currentUser.id ? (newMessage.status || 'sent') : undefined,
       };
 
       setMessages((prev) => [...prev, newMessageObj]);
@@ -381,68 +446,110 @@ export function ChatSection({
         ...prev,
         [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
       }));
-      const shouldAuto = userAtBottomRef.current || newMessage.senderId === currentUser.id;
-      if (shouldAuto) setShouldScrollToBottom(true);
 
       const otherUserId = newMessage.senderId === currentUser.id ? newMessage.recipientId : newMessage.senderId;
       const otherUserName = newMessage.senderId === currentUser.id ? newMessage.recipient?.username : newMessage.sender?.username;
       const otherUserAvatar = newMessage.senderId === currentUser.id ? newMessage.recipient?.avatar : newMessage.sender?.avatar;
+      
+      // Only increment unread count if the message is from someone else and not for the currently selected chat
+      const shouldIncrementUnread = newMessage.senderId !== currentUser.id && otherUserId !== selectedChat;
+      
       upsertChatPreview(otherUserId, {
         name: otherUserName,
         avatar: otherUserAvatar,
         lastMessage: newMessage.content || newMessage.mediaUrl || 'Media',
         timestamp: formatTimestamp(newMessage.createdAt),
-        incrementUnread: otherUserId !== selectedChat,
+        incrementUnread: shouldIncrementUnread,
+        isFromCurrentUser: newMessage.senderId === currentUser.id,
+        messageStatus: newMessage.senderId === currentUser.id ? (newMessage.status || 'sent') : undefined,
       });
     };
 
     const handleMessageUpdated = (updatedMessage: any) => {
       setMessages((prev) =>
-        prev.map((msg) => (msg.id === updatedMessage.id ? { ...msg, content: updatedMessage.content || msg.content } : msg))
+        prev.map((msg: Message) => (msg.id === updatedMessage.id ? { ...msg, content: updatedMessage.content || msg.content } : msg))
       );
     };
 
     const handleMessageDeleted = (messageId: string) => {
-      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+      setMessages((prev) => prev.filter((msg: Message) => msg.id !== messageId));
+    };
+
+    const handleMessageRead = (data: { messageId: string; status: 'delivered' | 'read' }) => {
+      setMessages((prev) =>
+        prev.map((msg: Message) =>
+          msg.id === data.messageId ? { ...msg, status: data.status } : msg
+        )
+      );
+      if (selectedChat) {
+        setMessagesCache((prev) => {
+          const chatId = selectedChat;
+          return {
+            ...prev,
+            [chatId]: prev[chatId]?.map((msg: Message) =>
+              msg.id === data.messageId ? { ...msg, status: data.status } : msg
+            ) || []
+          };
+        });
+      }
     };
 
     socket.on('newMessage', handleNewMessage);
     socket.on('messageUpdated', handleMessageUpdated);
     socket.on('messageDeleted', handleMessageDeleted);
+    socket.on('messageRead', handleMessageRead);
 
     return () => {
       socket.off('newMessage', handleNewMessage);
       socket.off('messageUpdated', handleMessageUpdated);
       socket.off('messageDeleted', handleMessageDeleted);
+      socket.off('messageRead', handleMessageRead);
     };
   }, [socket, currentUser.id, selectedChat]);
 
-  // Scroll to bottom when messages change based on shouldScrollToBottom
+  // Intersection Observer to mark messages as read when they come into viewport
   useEffect(() => {
-    if (shouldScrollToBottom && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-      setShouldScrollToBottom(false);
-    }
-  }, [messages, shouldScrollToBottom]);
+    if (!selectedChat) return;
 
-  // Detect scroll position to prevent auto-scroll if user has scrolled up
-  useEffect(() => {
-    const scrollArea = scrollAreaRef.current;
-    if (!scrollArea || !selectedChat) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const messageId = entry.target.getAttribute('data-message-id');
+            if (messageId && !readMessages.has(messageId)) {
+              setReadMessages(prev => new Set([...prev, messageId]));
+              
+              // Update unread count locally
+              updateUnreadCount(selectedChat, messageId);
+              
+              // Mark message as read on server
+              const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
+              if (token) {
+                fetch('http://localhost:4000/v1/messages/mark-read', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({ messageId, recipientId: selectedChat }),
+                }).catch(e => console.warn('Failed to mark message as read', e));
+              }
+            }
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
 
-    const handleScroll = () => {
-      if (scrollArea) {
-        const isAtBottom = scrollArea.scrollHeight - scrollArea.scrollTop <= scrollArea.clientHeight + 1; // Allow small tolerance
-        userAtBottomRef.current = isAtBottom;
-        if (!isAtBottom) {
-          setShouldScrollToBottom(false);
-        }
-      }
+    // Observe all message elements
+    const messageElements = document.querySelectorAll('[data-message-id]');
+    messageElements.forEach(el => observer.observe(el));
+
+    return () => {
+      observer.disconnect();
     };
-
-    scrollArea.addEventListener("scroll", handleScroll);
-    return () => scrollArea.removeEventListener("scroll", handleScroll);
-  }, [selectedChat]);
+  }, [selectedChat, messages, readMessages]);
 
   const handleSendMessage = async () => {
     if (!message.trim() || !selectedChat) return;
@@ -473,6 +580,7 @@ export function ChatSection({
           timestamp: formatTimestamp(m.createdAt),
           createdAt: m.createdAt,
           isOwn: true,
+          status: 'sent' as const,
         };
         
         setMessages((prev) => [...prev, newMessageObj]);
@@ -481,7 +589,6 @@ export function ChatSection({
           [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
         }));
         setMessage('');
-        setShouldScrollToBottom(true);
 
         upsertChatPreview(selectedChat, {
           name: selectedChatObj?.name,
@@ -489,6 +596,8 @@ export function ChatSection({
           lastMessage: m.content || m.mediaUrl || 'Media',
           timestamp: formatTimestamp(m.createdAt),
           resetUnread: true,
+          isFromCurrentUser: true,
+          messageStatus: 'sent',
         });
       }
     } catch (e) {
@@ -497,6 +606,8 @@ export function ChatSection({
   };
 
   const handleBackToList = () => {
+    setLoading(false);
+    setMessages([]);
     onChatSelect("");
   };
 
@@ -579,11 +690,39 @@ export function ChatSection({
                         <h4 className="text-white font-medium leading-tight truncate">{chat.name}</h4>
                         <span className="text-xs text-slate-400">{chat.timestamp}</span>
                       </div>
-                      {chat.lastMessage && (
+                      {(chat.lastMessage || chat.lastReadMessage) && (
                         <div className="flex items-center justify-between mt-0.5">
-                          <p className="text-sm text-slate-400 truncate">{chat.lastMessage}</p>
+                          <div className="flex items-center gap-1 flex-1 min-w-0">
+                            <p className="text-sm text-slate-400 truncate">
+                              {chat.unread > 0 && chat.lastReadMessage ? chat.lastReadMessage : chat.lastMessage}
+                            </p>
+                            {chat.lastMessageFromCurrentUser && chat.lastMessageStatus && (
+                              <div className="flex-shrink-0">
+                                {chat.lastMessageStatus === 'sent' && (
+                                  <svg className="w-3 h-3 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                                {chat.lastMessageStatus === 'delivered' && (
+                                  <svg className="w-3 h-3 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                                {chat.lastMessageStatus === 'read' && (
+                                  <div className="flex">
+                                    <svg className="w-3 h-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                    <svg className="w-3 h-3 text-blue-400 -ml-1" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                           {chat.unread > 0 && (
-                            <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                            <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center ml-2">
                               {chat.unread}
                             </span>
                           )}
@@ -663,9 +802,24 @@ export function ChatSection({
                     <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
                   </div>
                 ) : groupedMessages.length === 0 ? (
-                  <div className="p-4 text-slate-400 text-center">
-                    <p className="text-sm">No messages yet.</p>
-                    <p className="text-xs mt-1">Start a conversation with your friend.</p>
+                  <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                    <div className="mb-6">
+                      <div className="w-20 h-20 mx-auto mb-4 bg-slate-700/50 rounded-full flex items-center justify-center">
+                        <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                      </div>
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2">No conversation yet</h3>
+                    <p className="text-slate-400 mb-4 max-w-sm">
+                      Start your first conversation with {selectedChatObj?.name || 'this user'} by sending a message below.
+                    </p>
+                    <div className="flex items-center gap-2 text-slate-500 text-sm">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Type a message to get started</span>
+                    </div>
                   </div>
                 ) : (
                   groupedMessages.map((group, index) => (
@@ -679,22 +833,52 @@ export function ChatSection({
                         </div>
                       )}
                       {group.messages.map((msg) => (
-                        <div key={msg.id} className={cn("flex", msg.isOwn ? "justify-end" : "justify-start", "my-2")}>
+                        <div 
+                          key={msg.id} 
+                          className={cn("flex", msg.isOwn ? "justify-end" : "justify-start", "my-2")}
+                          data-message-id={msg.id}
+                        >
                           <div
                             className={cn(
-                              "max-w-xs lg:max-w-md px-4 py-2 rounded-2xl flex gap-4",
+                              "max-w-xs lg:max-w-md px-4 py-2 rounded-2xl flex flex-col",
                               msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
                             )}
                           >
                             <p className="text-sm">{msg.content}</p>
+                            <div className="flex items-center justify-end gap-1 mt-1">
                             <p
                               className={cn(
-                                "text-[0.7rem] mt-1 justify-end",
+                                  "text-[0.7rem]",
                                 msg.isOwn ? "text-purple-200" : "text-slate-400"
                               )}
                             >
                               {msg.timestamp}
                             </p>
+                              {msg.isOwn && msg.status && (
+                                <div className="ml-1">
+                                  {msg.status === 'sent' && (
+                                    <svg className="w-3 h-3 text-purple-200" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
+                                  {msg.status === 'delivered' && (
+                                    <svg className="w-3 h-3 text-purple-200" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
+                                  {msg.status === 'read' && (
+                                    <div className="flex">
+                                      <svg className="w-3 h-3 text-blue-300" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <svg className="w-3 h-3 text-blue-300 -ml-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
