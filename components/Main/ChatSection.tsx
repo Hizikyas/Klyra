@@ -43,6 +43,7 @@ interface Message {
   timestamp: string;
   createdAt: string; // Store raw date string for grouping
   isOwn: boolean;
+  isRead?: boolean; // Read status from database
   status?: 'sent' | 'delivered' | 'read'; // Message status for own messages
 }
 
@@ -158,7 +159,7 @@ export function ChatSection({
             ? timestamp ?? existing.lastReadTimestamp
             : existing.lastReadTimestamp,
           // Update message status
-          lastMessageStatus: opts.messageStatus ?? existing.lastMessageStatus,
+          lastMessageStatus: opts.isFromCurrentUser ? (opts.messageStatus || 'sent') : existing.lastMessageStatus,
           lastMessageFromCurrentUser: opts.isFromCurrentUser ?? existing.lastMessageFromCurrentUser,
         };
         if (opts.preserveOrder) {
@@ -180,7 +181,7 @@ export function ChatSection({
         online: false,
         lastReadMessage: opts.isFromCurrentUser ? opts.lastMessage : undefined,
         lastReadTimestamp: opts.isFromCurrentUser ? timestamp : undefined,
-        lastMessageStatus: opts.messageStatus,
+        lastMessageStatus: opts.isFromCurrentUser ? (opts.messageStatus || 'sent') : undefined,
         lastMessageFromCurrentUser: opts.isFromCurrentUser,
       };
       return [created, ...prev];
@@ -326,7 +327,8 @@ export function ChatSection({
             timestamp: formatTimestamp(m.createdAt),
             createdAt: m.createdAt,
             isOwn: m.senderId === currentUser.id,
-            status: m.senderId === currentUser.id ? (m.status || 'sent') : undefined,
+            isRead: m.isRead,
+            status: m.senderId === currentUser.id ? (m.isRead ? 'read' as const : 'sent' as const) : undefined,
           }));
           
           setMessagesCache(prev => ({ ...prev, [selectedChat]: mapped }));
@@ -379,6 +381,13 @@ export function ChatSection({
       });
       
       if (response.ok) {
+        // Update local messages to mark them as read
+        setMessages(prev => prev.map(msg => ({ ...msg, isRead: true, status: msg.isOwn ? 'read' as const : msg.status })));
+        setMessagesCache(prev => ({
+          ...prev,
+          [chatId]: prev[chatId]?.map(msg => ({ ...msg, isRead: true, status: msg.isOwn ? 'read' as const : msg.status })) || []
+        }));
+        
         // Get the last message from the current chat to update lastReadMessage
         const currentMessages = messagesCache[chatId] || messages;
         const lastMessage = currentMessages[currentMessages.length - 1];
@@ -431,14 +440,15 @@ export function ChatSection({
 
       if (!selectedChat || !isForThisChat) return;
 
-      const newMessageObj = {
+      const newMessageObj: Message = {
         id: newMessage.id,
         sender: newMessage.senderId === currentUser.id ? 'You' : newMessage.sender?.username || 'Unknown',
         content: newMessage.content || newMessage.mediaUrl || 'Media',
         timestamp: formatTimestamp(newMessage.createdAt),
         createdAt: newMessage.createdAt,
         isOwn: newMessage.senderId === currentUser.id,
-        status: newMessage.senderId === currentUser.id ? (newMessage.status || 'sent') : undefined,
+        isRead: newMessage.isRead,
+        status: newMessage.senderId === currentUser.id ? (newMessage.isRead ? 'read' as const : 'sent' as const) : undefined,
       };
 
       setMessages((prev) => [...prev, newMessageObj]);
@@ -475,10 +485,10 @@ export function ChatSection({
       setMessages((prev) => prev.filter((msg: Message) => msg.id !== messageId));
     };
 
-    const handleMessageRead = (data: { messageId: string; status: 'delivered' | 'read' }) => {
+    const handleMessageRead = (data: { messageId: string; isRead: boolean }) => {
       setMessages((prev) =>
         prev.map((msg: Message) =>
-          msg.id === data.messageId ? { ...msg, status: data.status } : msg
+          msg.id === data.messageId ? { ...msg, isRead: data.isRead, status: data.isRead ? 'read' as const : 'sent' as const } : msg
         )
       );
       if (selectedChat) {
@@ -487,7 +497,7 @@ export function ChatSection({
           return {
             ...prev,
             [chatId]: prev[chatId]?.map((msg: Message) =>
-              msg.id === data.messageId ? { ...msg, status: data.status } : msg
+              msg.id === data.messageId ? { ...msg, isRead: data.isRead, status: data.isRead ? 'read' as const : 'sent' as const } : msg
             ) || []
           };
         });
@@ -513,31 +523,33 @@ export function ChatSection({
 
     const observer = new IntersectionObserver(
       (entries) => {
+        const unreadMessageIds: string[] = [];
+        
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             const messageId = entry.target.getAttribute('data-message-id');
             if (messageId && !readMessages.has(messageId)) {
               setReadMessages(prev => new Set([...prev, messageId]));
-              
-              // Update unread count locally
-              updateUnreadCount(selectedChat, messageId);
-              
-              // Mark message as read on server
-              const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
-              if (token) {
-                fetch('http://localhost:4000/v1/messages/mark-read', {
-                  method: 'POST',
-                  credentials: 'include',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                  },
-                  body: JSON.stringify({ messageId, recipientId: selectedChat }),
-                }).catch(e => console.warn('Failed to mark message as read', e));
-              }
+              unreadMessageIds.push(messageId);
             }
           }
         });
+
+        // Mark all unread messages as read in bulk
+        if (unreadMessageIds.length > 0) {
+          const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
+          if (token) {
+            fetch('http://localhost:4000/v1/messages/mark-read', {
+              method: 'POST',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ recipientId: selectedChat }),
+            }).catch(e => console.warn('Failed to mark messages as read', e));
+          }
+        }
       },
       { threshold: 0.5 }
     );
@@ -573,13 +585,14 @@ export function ChatSection({
       const data = await res.json();
       if (data?.message) {
         const m = data.message;
-        const newMessageObj = {
+        const newMessageObj: Message = {
           id: m.id,
           sender: 'You',
           content: m.content || m.mediaUrl || 'Media',
           timestamp: formatTimestamp(m.createdAt),
           createdAt: m.createdAt,
           isOwn: true,
+          isRead: false,
           status: 'sent' as const,
         };
         
@@ -696,19 +709,9 @@ export function ChatSection({
                             <p className="text-sm text-slate-400 truncate">
                               {chat.unread > 0 && chat.lastReadMessage ? chat.lastReadMessage : chat.lastMessage}
                             </p>
-                            {chat.lastMessageFromCurrentUser && chat.lastMessageStatus && (
+                            {chat.lastMessageFromCurrentUser && (
                               <div className="flex-shrink-0">
-                                {chat.lastMessageStatus === 'sent' && (
-                                  <svg className="w-3 h-3 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                )}
-                                {chat.lastMessageStatus === 'delivered' && (
-                                  <svg className="w-3 h-3 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                )}
-                                {chat.lastMessageStatus === 'read' && (
+                                {chat.lastMessageStatus === 'read' ? (
                                   <div className="flex">
                                     <svg className="w-3 h-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
                                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -717,6 +720,10 @@ export function ChatSection({
                                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                     </svg>
                                   </div>
+                                ) : (
+                                  <svg className="w-3 h-3 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
                                 )}
                               </div>
                             )}
@@ -814,12 +821,6 @@ export function ChatSection({
                     <p className="text-slate-400 mb-4 max-w-sm">
                       Start your first conversation with {selectedChatObj?.name || 'this user'} by sending a message below.
                     </p>
-                    <div className="flex items-center gap-2 text-slate-500 text-sm">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>Type a message to get started</span>
-                    </div>
                   </div>
                 ) : (
                   groupedMessages.map((group, index) => (
@@ -854,19 +855,9 @@ export function ChatSection({
                             >
                               {msg.timestamp}
                             </p>
-                              {msg.isOwn && msg.status && (
+                              {msg.isOwn && (
                                 <div className="ml-1">
-                                  {msg.status === 'sent' && (
-                                    <svg className="w-3 h-3 text-purple-200" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  )}
-                                  {msg.status === 'delivered' && (
-                                    <svg className="w-3 h-3 text-purple-200" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  )}
-                                  {msg.status === 'read' && (
+                                  {msg.isRead ? (
                                     <div className="flex">
                                       <svg className="w-3 h-3 text-blue-300" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -875,6 +866,10 @@ export function ChatSection({
                                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                       </svg>
                                     </div>
+                                  ) : (
+                                    <svg className="w-3 h-3 text-purple-200" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
                                   )}
                                 </div>
                               )}
