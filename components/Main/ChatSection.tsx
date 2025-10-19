@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Send, Paperclip, Smile, Video, Phone, MessageCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { Send, Paperclip, Smile, Video, Phone, MessageCircle, ArrowLeft, Loader2, Check, CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { SettingsContent } from "./SettingsContent";
+import { BiCheckDouble } from "react-icons/bi";
 
 interface ChatSectionProps {
   activeTab: string;
@@ -32,7 +33,7 @@ interface ChatItem {
   isGroup?: boolean;
   lastReadMessage?: string; // Last message that was read by the current user
   lastReadTimestamp?: string; // Timestamp of the last read message
-  lastMessageStatus?: 'sent' | 'delivered' | 'read'; // Status of the last message
+  lastMessageStatus?: 'sent' | 'read'; // Status of the last message
   lastMessageFromCurrentUser?: boolean; // Whether the last message is from current user
 }
 
@@ -44,7 +45,7 @@ interface Message {
   createdAt: string; // Store raw date string for grouping
   isOwn: boolean;
   isRead?: boolean; // Read status from database
-  status?: 'sent' | 'delivered' | 'read'; // Message status for own messages
+  status?: 'sending' | 'sent' | 'read'; // Message status for own messages (Telegram-style)
 }
 
 export function ChatSection({
@@ -132,7 +133,7 @@ export function ChatSection({
       resetUnread?: boolean;
       preserveOrder?: boolean;
       isFromCurrentUser?: boolean; // Whether the message is from current user
-      messageStatus?: 'sent' | 'delivered' | 'read'; // Status of the message
+      messageStatus?: 'sent' | 'read'; // Status of the message
     } = {}
   ) => {
     setChats((prev) => {
@@ -344,7 +345,7 @@ export function ChatSection({
               resetUnread: true,
               preserveOrder: true,
               isFromCurrentUser: last.isOwn,
-              messageStatus: last.status,
+              messageStatus: last.status === 'sending' ? 'sent' : (last.status === 'read' ? 'read' : 'sent'),
             });
           }
         } else {
@@ -381,24 +382,10 @@ export function ChatSection({
       });
       
       if (response.ok) {
-        // Update local messages to mark them as read
-        setMessages(prev => prev.map(msg => ({ ...msg, isRead: true, status: msg.isOwn ? 'read' as const : msg.status })));
-        setMessagesCache(prev => ({
-          ...prev,
-          [chatId]: prev[chatId]?.map(msg => ({ ...msg, isRead: true, status: msg.isOwn ? 'read' as const : msg.status })) || []
-        }));
-        
-        // Get the last message from the current chat to update lastReadMessage
-        const currentMessages = messagesCache[chatId] || messages;
-        const lastMessage = currentMessages[currentMessages.length - 1];
-        
-        // Only reset unread count if server confirms it was marked as read
+        // Only reset unread count, don't change message status on page load
         upsertChatPreview(chatId, { 
           resetUnread: true, 
           preserveOrder: true,
-          lastMessage: lastMessage?.content,
-          timestamp: lastMessage?.timestamp,
-          isFromCurrentUser: false, // This is for received messages
         });
       } else {
         console.warn('Failed to mark messages as read on server');
@@ -528,14 +515,21 @@ export function ChatSection({
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             const messageId = entry.target.getAttribute('data-message-id');
+            const messageElement = entry.target as HTMLElement;
+            const isOwnMessage = messageElement.getAttribute('data-is-own') === 'true';
+            
             if (messageId && !readMessages.has(messageId)) {
               setReadMessages(prev => new Set([...prev, messageId]));
-              unreadMessageIds.push(messageId);
+              
+              // Only mark as read if it's not our own message (received messages)
+              if (!isOwnMessage) {
+                unreadMessageIds.push(messageId);
+              }
             }
           }
         });
 
-        // Mark all unread messages as read in bulk
+        // Mark all unread received messages as read in bulk
         if (unreadMessageIds.length > 0) {
           const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
           if (token) {
@@ -547,6 +541,31 @@ export function ChatSection({
                 Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify({ recipientId: selectedChat }),
+            }).then(() => {
+              // Update local state to mark messages as read and update sender's status
+              setMessages(prev => prev.map(msg => {
+                if (msg.isOwn && msg.status === 'sent') {
+                  // Update sender's message status to 'read' when recipient sees it
+                  return { ...msg, status: 'read' as const };
+                }
+                return msg;
+              }));
+              
+              setMessagesCache(prev => ({
+                ...prev,
+                [selectedChat]: prev[selectedChat]?.map(msg => {
+                  if (msg.isOwn && msg.status === 'sent') {
+                    return { ...msg, status: 'read' as const };
+                  }
+                  return msg;
+                }) || []
+              }));
+
+              // Update chat preview to remove unread count
+              upsertChatPreview(selectedChat, { 
+                resetUnread: true, 
+                preserveOrder: true,
+              });
             }).catch(e => console.warn('Failed to mark messages as read', e));
           }
         }
@@ -712,18 +731,9 @@ export function ChatSection({
                             {chat.lastMessageFromCurrentUser && (
                               <div className="flex-shrink-0">
                                 {chat.lastMessageStatus === 'read' ? (
-                                  <div className="flex">
-                                    <svg className="w-3 h-3 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                    <svg className="w-3 h-3 text-blue-400 -ml-1" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  </div>
+                                  <CheckCheck className="w-3 h-3 text-blue-400" />
                                 ) : (
-                                  <svg className="w-3 h-3 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
+                                  <Check className="w-3 h-3 text-slate-400" />
                                 )}
                               </div>
                             )}
@@ -838,6 +848,7 @@ export function ChatSection({
                           key={msg.id} 
                           className={cn("flex", msg.isOwn ? "justify-end" : "justify-start", "my-2")}
                           data-message-id={msg.id}
+                          data-is-own={msg.isOwn.toString()}
                         >
                           <div
                             className={cn(
@@ -857,19 +868,10 @@ export function ChatSection({
                             </p>
                               {msg.isOwn && (
                                 <div className="ml-1">
-                                  {msg.isRead ? (
-                                    <div className="flex">
-                                      <svg className="w-3 h-3 text-blue-300" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                      </svg>
-                                      <svg className="w-3 h-3 text-blue-300 -ml-1" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                      </svg>
-                                    </div>
+                                  {msg.status === 'read' ? (
+                                    <CheckCheck className="w-3 h-3 text-blue-400" />
                                   ) : (
-                                    <svg className="w-3 h-3 text-purple-200" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
+                                    <Check className="w-3 h-3 text-purple-200" />
                                   )}
                                 </div>
                               )}
