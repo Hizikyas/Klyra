@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { SettingsContent } from "./SettingsContent";
-import { BiCheckDouble } from "react-icons/bi";
+import { IoCheckmarkDone } from "react-icons/io5";
 
 interface ChatSectionProps {
   activeTab: string;
@@ -447,10 +447,10 @@ export function ChatSection({
       const otherUserId = newMessage.senderId === currentUser.id ? newMessage.recipientId : newMessage.senderId;
       const otherUserName = newMessage.senderId === currentUser.id ? newMessage.recipient?.username : newMessage.sender?.username;
       const otherUserAvatar = newMessage.senderId === currentUser.id ? newMessage.recipient?.avatar : newMessage.sender?.avatar;
-      
+
       // Only increment unread count if the message is from someone else and not for the currently selected chat
       const shouldIncrementUnread = newMessage.senderId !== currentUser.id && otherUserId !== selectedChat;
-      
+
       upsertChatPreview(otherUserId, {
         name: otherUserName,
         avatar: otherUserAvatar,
@@ -489,6 +489,15 @@ export function ChatSection({
           };
         });
       }
+
+      // Update chat preview status for the sender's messages
+      if (selectedChat) {
+        upsertChatPreview(selectedChat, {
+          resetUnread: false,
+          preserveOrder: true,
+          messageStatus: 'read',
+        });
+      }
     };
 
     socket.on('newMessage', handleNewMessage);
@@ -511,16 +520,16 @@ export function ChatSection({
     const observer = new IntersectionObserver(
       (entries) => {
         const unreadMessageIds: string[] = [];
-        
+
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             const messageId = entry.target.getAttribute('data-message-id');
             const messageElement = entry.target as HTMLElement;
             const isOwnMessage = messageElement.getAttribute('data-is-own') === 'true';
-            
+
             if (messageId && !readMessages.has(messageId)) {
               setReadMessages(prev => new Set([...prev, messageId]));
-              
+
               // Only mark as read if it's not our own message (received messages)
               if (!isOwnMessage) {
                 unreadMessageIds.push(messageId);
@@ -550,7 +559,7 @@ export function ChatSection({
                 }
                 return msg;
               }));
-              
+
               setMessagesCache(prev => ({
                 ...prev,
                 [selectedChat]: prev[selectedChat]?.map(msg => {
@@ -562,9 +571,10 @@ export function ChatSection({
               }));
 
               // Update chat preview to remove unread count
-              upsertChatPreview(selectedChat, { 
-                resetUnread: true, 
+              upsertChatPreview(selectedChat, {
+                resetUnread: true,
                 preserveOrder: true,
+                messageStatus: 'read', // Update status to read for sender
               });
             }).catch(e => console.warn('Failed to mark messages as read', e));
           }
@@ -724,16 +734,16 @@ export function ChatSection({
                       </div>
                       {(chat.lastMessage || chat.lastReadMessage) && (
                         <div className="flex items-center justify-between mt-0.5">
-                          <div className="flex items-center gap-1 flex-1 min-w-0">
+                          <div className="flex items-center justify-between flex-1 min-w-0">
                             <p className="text-sm text-slate-400 truncate">
                               {chat.unread > 0 && chat.lastReadMessage ? chat.lastReadMessage : chat.lastMessage}
                             </p>
                             {chat.lastMessageFromCurrentUser && (
                               <div className="flex-shrink-0">
                                 {chat.lastMessageStatus === 'read' ? (
-                                  <CheckCheck className="w-3 h-3 text-blue-400" />
+                                  <IoCheckmarkDone className="w-6 h-5 text-blue-400" />
                                 ) : (
-                                  <Check className="w-3 h-3 text-slate-400" />
+                                  <Check className="w-6 h-4 text-slate-400" />
                                 )}
                               </div>
                             )}
@@ -829,7 +839,7 @@ export function ChatSection({
                     </div>
                     <h3 className="text-lg font-semibold text-white mb-2">No conversation yet</h3>
                     <p className="text-slate-400 mb-4 max-w-sm">
-                      Start your first conversation with {selectedChatObj?.name || 'this user'} by sending a message below.
+                      Start your first conversation with {selectedChatObj?.name || 'this user'} .
                     </p>
                   </div>
                 ) : (
@@ -856,8 +866,8 @@ export function ChatSection({
                               msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
                             )}
                           >
-                            <p className="text-sm">{msg.content}</p>
-                            <div className="flex items-center justify-end gap-1 mt-1">
+                            <div className="flex items-center justify-end gap-1 ">
+                            <p className="text-sm pr-[2rem]">{msg.content}</p>
                             <p
                               className={cn(
                                   "text-[0.7rem]",
@@ -869,9 +879,9 @@ export function ChatSection({
                               {msg.isOwn && (
                                 <div className="ml-1">
                                   {msg.status === 'read' ? (
-                                    <CheckCheck className="w-3 h-3 text-blue-400" />
+                                    <IoCheckmarkDone className="w-6 h-5 text-blue-400" />
                                   ) : (
-                                    <Check className="w-3 h-3 text-purple-200" />
+                                    <Check className="w-6 h-4 text-purple-200" />
                                   )}
                                 </div>
                               )}
