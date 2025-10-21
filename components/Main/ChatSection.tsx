@@ -286,7 +286,16 @@ export function ChatSection({
     return () => window.removeEventListener('klyra:addChatFromSearch', onAddChatFromSearch as EventListener);
   }, [onChatSelect]);
 
-  // Load messages for selected chat with caching
+  // helper: find chatId for a messageId in messagesCache
+  const findChatIdByMessageId = (messageId: string | undefined) => {
+    if (!messageId) return null;
+    for (const [chatId, msgs] of Object.entries(messagesCache)) {
+      if (msgs?.some((m) => m.id === messageId)) return chatId;
+    }
+    return null;
+  };
+
+  // Load messages for selected chat with caching (hydrate from cache, always fetch latest)
   useEffect(() => {
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
     if (!token || !selectedChat) {
@@ -294,14 +303,14 @@ export function ChatSection({
       return;
     }
 
-    // Reset loading state when chat changes
+    // show internal loading flag
     setLoading(true);
     setMessages([]);
 
+    // If we have cache, show it immediately while we fetch the latest from server
     if (messagesCache[selectedChat]) {
       setMessages(messagesCache[selectedChat]);
-      setLoading(false);
-      return;
+      // don't return — still fetch latest to ensure UI reflects server
     }
 
     const fetchMessages = async () => {
@@ -314,11 +323,11 @@ export function ChatSection({
           },
           credentials: 'include',
         });
-        
+
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
         }
-        
+
         const data = await res.json();
         if (Array.isArray(data?.messages)) {
           const mapped: Message[] = data.messages.map((m: any) => ({
@@ -331,8 +340,9 @@ export function ChatSection({
             isRead: m.isRead,
             status: m.senderId === currentUser.id ? (m.isRead ? 'read' as const : 'sent' as const) : undefined,
           }));
-          
-          setMessagesCache(prev => ({ ...prev, [selectedChat]: mapped }));
+
+          // update cache and UI with server data (overwrites stale cache)
+          setMessagesCache((prev) => ({ ...prev, [selectedChat]: mapped }));
           setMessages(mapped);
 
           const last = mapped[mapped.length - 1];
@@ -349,74 +359,48 @@ export function ChatSection({
             });
           }
         } else {
-          // No messages found - this is normal for new conversations
           setMessages([]);
-          setMessagesCache(prev => ({ ...prev, [selectedChat]: [] }));
+          setMessagesCache((prev) => ({ ...prev, [selectedChat]: [] }));
         }
       } catch (e) {
         console.error('Failed to load messages', e);
-        setMessages([]); // Fallback to empty on error
-        setMessagesCache(prev => ({ ...prev, [selectedChat]: [] }));
+        setMessages([]);
+        setMessagesCache((prev) => ({ ...prev, [selectedChat]: [] }));
       } finally {
-        setLoading(false); // Always hide loader after fetch
+        setLoading(false);
       }
     };
 
     fetchMessages();
-  }, [selectedChat, currentUser.id]); // Removed messagesCache from dependencies to prevent infinite loops
+  }, [selectedChat, currentUser.id]);
 
-  // Mark messages as read on server and update local preview
-  const markChatAsRead = async (chatId: string) => {
-    try {
-      const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
-      if (!token) return;
-      
-      const response = await fetch('http://localhost:4000/v1/messages/mark-read', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ recipientId: chatId }),
-      });
-      
-      if (response.ok) {
-        // Only reset unread count, don't change message status on page load
-        upsertChatPreview(chatId, { 
-          resetUnread: true, 
-          preserveOrder: true,
-        });
-      } else {
-        console.warn('Failed to mark messages as read on server');
-      }
-    } catch (e) {
-      console.warn('markChatAsRead failed', e);
-    }
-  };
-
-  // Update unread count when messages are read
-  const updateUnreadCount = (chatId: string, messageId: string) => {
-    setChats(prev => prev.map(chat => {
-      if (chat.id === chatId && chat.unread > 0) {
-        return { ...chat, unread: Math.max(0, chat.unread - 1) };
-      }
-      return chat;
-    }));
-  };
-
-  // Reset unread count when opening a chat (also notify server)
+  // Reset unread count and mark messages as read when opening a chat
   useEffect(() => {
     if (!selectedChat) {
       setLoading(false);
       setMessages([]);
       return;
     }
-    // Mark messages as read on server - this will also update the local unread count
+
+    // optimistic UI: mark preview unread->0 immediately
+    upsertChatPreview(selectedChat, { resetUnread: true, preserveOrder: true });
+
+    // mark messages in UI/cache as read (so sidebar shows double-check for own messages)
+    setMessages((prev) =>
+      prev.map((m) => (m.isOwn ? { ...m, status: m.status === 'read' ? 'read' : m.status } : { ...m, isRead: true }))
+    );
+    setMessagesCache((prev) => ({
+      ...prev,
+      [selectedChat]: (prev[selectedChat] || []).map((m) =>
+        m.isOwn ? { ...m, status: m.status === 'read' ? 'read' : m.status } : { ...m, isRead: true }
+      ),
+    }));
+
+    // notify server to mark messages as read for this conversation
     markChatAsRead(selectedChat);
   }, [selectedChat]);
 
-  // Handle incoming messages (filter for current chat)
+  // Handle incoming socket events
   useEffect(() => {
     if (!socket) return;
 
@@ -473,30 +457,36 @@ export function ChatSection({
     };
 
     const handleMessageRead = (data: { messageId: string; isRead: boolean }) => {
+      // Update message status in open chat if present
       setMessages((prev) =>
         prev.map((msg: Message) =>
           msg.id === data.messageId ? { ...msg, isRead: data.isRead, status: data.isRead ? 'read' as const : 'sent' as const } : msg
         )
       );
+
       if (selectedChat) {
-        setMessagesCache((prev) => {
-          const chatId = selectedChat;
-          return {
-            ...prev,
-            [chatId]: prev[chatId]?.map((msg: Message) =>
-              msg.id === data.messageId ? { ...msg, isRead: data.isRead, status: data.isRead ? 'read' as const : 'sent' as const } : msg
-            ) || []
-          };
+        setMessagesCache((prev) => ({
+          ...prev,
+          [selectedChat]: prev[selectedChat]?.map((msg: Message) =>
+            msg.id === data.messageId ? { ...msg, isRead: data.isRead, status: data.isRead ? 'read' as const : 'sent' as const } : msg
+          ) || []
+        }));
+      }
+
+      // Find the chat where this message belongs (use cache) and update its preview status
+      const chatIdFromCache = findChatIdByMessageId(data.messageId);
+      const chatIdToUpdate = chatIdFromCache ?? selectedChat ?? null;
+      if (chatIdToUpdate) {
+        upsertChatPreview(chatIdToUpdate, {
+          resetUnread: false,
+          preserveOrder: true,
+          messageStatus: data.isRead ? 'read' : 'sent',
         });
       }
 
-      // Update chat preview status for the sender's messages
-      if (selectedChat) {
-        upsertChatPreview(selectedChat, {
-          resetUnread: false,
-          preserveOrder: true,
-          messageStatus: 'read',
-        });
+      // Decrement unread for that chat if needed
+      if (chatIdFromCache) {
+        updateUnreadCount(chatIdFromCache, data.messageId);
       }
     };
 
@@ -511,7 +501,7 @@ export function ChatSection({
       socket.off('messageDeleted', handleMessageDeleted);
       socket.off('messageRead', handleMessageRead);
     };
-  }, [socket, currentUser.id, selectedChat]);
+  }, [socket, currentUser.id, selectedChat, messagesCache]);
 
   // Intersection Observer to mark messages as read when they come into viewport
   useEffect(() => {
