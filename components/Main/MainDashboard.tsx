@@ -1,7 +1,7 @@
 // components/MainDashboard.jsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { TopNavigation } from "./TopNavigation";
 import { LeftSidebar } from "./LeftSidebar";
 import { ChatSection } from "./ChatSection";
@@ -16,16 +16,29 @@ export function MainDashboard() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isRightCollapsed, setIsRightCollapsed] = useState(false);
   const [selectedSetting, setSelectedSetting] = useState<string | null>("profile");
-  const currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "{}");
-  const { socket, isConnected } = useSocket(currentUser?.id, null); // Pass null for groupId initially
+
+  // Safe client-only currentUser
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = sessionStorage.getItem("currentUser");
+      setCurrentUser(raw ? JSON.parse(raw) : null);
+    } catch {
+      setCurrentUser(null);
+    }
+  }, []);
+
+  // pass nullable id to useSocket (hook should handle null)
+  const { socket, isConnected } = useSocket(currentUser?.id || null, null);
 
   useEffect(() => {
-    if (!socket || !isConnected || !currentUser.id) return;
+    if (!socket || !isConnected || !currentUser?.id) return;
 
     // Join user room
-    socket.emit("joinUser", currentUser.id);
+    socket.emit("joinUser", currentUser?.id);
 
-    // socket.emit("joinGroup", currentUser.id);
+    // socket.emit("joinGroup", currentUser?.id);
 
 
     // Fetch and join group rooms
@@ -33,7 +46,7 @@ export function MainDashboard() {
     //   try {
     //     // Replace with your API call or Prisma query to get user's groups
     //     const groups = await prisma.userGroup.findMany({
-    //       where: { userId: currentUser.id },
+    //       where: { userId: currentUser?.id },
     //       select: { groupId: true },
     //     });
     //     groups.forEach((group) => {
@@ -49,17 +62,17 @@ export function MainDashboard() {
 
     // Cleanup: Leave all rooms on unmount
     // return () => {
-    //   socket.emit("leaveUser", currentUser.id);
+    //   socket.emit("leaveUser", currentUser?.id);
 
     // };
-  }, [socket, isConnected, currentUser.id]);
+  }, [socket, isConnected, currentUser?.id]);
 
   const handleSettingsClick = () => {
     setActiveTab("settings");
     setSelectedSetting("profile"); // Default to profile view
   };
 
-  if (!currentUser.id) {
+  if (!currentUser?.id) {
     // Redirect to login if no user is authenticated
     window.location.href = "/";
     return null;

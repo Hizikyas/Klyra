@@ -63,11 +63,20 @@ export function ChatSection({
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesCache, setMessagesCache] = useState<Record<string, Message[]>>({});
   const [loading, setLoading] = useState(false); // State for loading messages of selected chat
-  const currentUser = JSON.parse(sessionStorage.getItem("currentUser") || "{}");
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [readMessages, setReadMessages] = useState<Set<string>>(new Set());
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
+    useEffect(() => {
+      if (typeof window === "undefined") return;
+      try {
+        const raw = sessionStorage.getItem("currentUser");
+        setCurrentUser(raw ? JSON.parse(raw) : {});
+      } catch {
+        setCurrentUser({});
+      }
+    }, []);
   // Helper to format timestamp consistently (parse as UTC if no TZ, display in fixed UTC with 12-hour AM/PM)
   const formatTimestamp = (dateStr?: string | Date, includeDate: boolean = false): string => {
     let dateInput = dateStr;
@@ -336,7 +345,7 @@ export function ChatSection({
             content: m.content || m.mediaUrl || 'Media',
             timestamp: formatTimestamp(m.createdAt),
             createdAt: m.createdAt,
-            isOwn: m.senderId === currentUser.id,
+            isOwn: m.senderId === currentUser?.id,
             isRead: m.isRead,
             status: m.senderId === currentUser.id ? (m.isRead ? 'read' as const : 'sent' as const) : undefined,
           }));
@@ -372,7 +381,7 @@ export function ChatSection({
     };
 
     fetchMessages();
-  }, [selectedChat, currentUser.id]);
+  }, [selectedChat, currentUser?.id]);
 
   // Reset unread count and mark messages as read when opening a chat
   useEffect(() => {
@@ -397,7 +406,7 @@ export function ChatSection({
     }));
 
     // notify server to mark messages as read for this conversation
-    markChatAsRead(selectedChat);
+    // markChatAsRead(selectedChat);
   }, [selectedChat]);
 
   // Handle incoming socket events
@@ -406,8 +415,8 @@ export function ChatSection({
 
     const handleNewMessage = (newMessage: any) => {
       const isForThisChat =
-        (!!newMessage.recipientId && newMessage.recipientId === currentUser.id && newMessage.senderId === selectedChat) ||
-        (!!newMessage.recipientId && newMessage.senderId === currentUser.id && newMessage.recipientId === selectedChat);
+        (!!newMessage.recipientId && newMessage.recipientId === currentUser?.id && newMessage.senderId === selectedChat) ||
+        (!!newMessage.recipientId && newMessage.senderId === currentUser?.id && newMessage.recipientId === selectedChat);
 
       if (!selectedChat || !isForThisChat) return;
 
@@ -417,7 +426,7 @@ export function ChatSection({
         content: newMessage.content || newMessage.mediaUrl || 'Media',
         timestamp: formatTimestamp(newMessage.createdAt),
         createdAt: newMessage.createdAt,
-        isOwn: newMessage.senderId === currentUser.id,
+        isOwn: newMessage.senderId === currentUser?.id,
         isRead: newMessage.isRead,
         status: newMessage.senderId === currentUser.id ? (newMessage.isRead ? 'read' as const : 'sent' as const) : undefined,
       };
@@ -433,7 +442,7 @@ export function ChatSection({
       const otherUserAvatar = newMessage.senderId === currentUser.id ? newMessage.recipient?.avatar : newMessage.sender?.avatar;
 
       // Only increment unread count if the message is from someone else and not for the currently selected chat
-      const shouldIncrementUnread = newMessage.senderId !== currentUser.id && otherUserId !== selectedChat;
+      const shouldIncrementUnread = newMessage.senderId !== currentUser?.id && otherUserId !== selectedChat;
 
       upsertChatPreview(otherUserId, {
         name: otherUserName,
@@ -441,8 +450,8 @@ export function ChatSection({
         lastMessage: newMessage.content || newMessage.mediaUrl || 'Media',
         timestamp: formatTimestamp(newMessage.createdAt),
         incrementUnread: shouldIncrementUnread,
-        isFromCurrentUser: newMessage.senderId === currentUser.id,
-        messageStatus: newMessage.senderId === currentUser.id ? (newMessage.status || 'sent') : undefined,
+        isFromCurrentUser: newMessage.senderId === currentUser?.id,
+        messageStatus: newMessage.senderId === currentUser?.id ? (newMessage.status || 'sent') : undefined,
       });
     };
 
@@ -486,7 +495,7 @@ export function ChatSection({
 
       // Decrement unread for that chat if needed
       if (chatIdFromCache) {
-        updateUnreadCount(chatIdFromCache, data.messageId);
+        // updateUnreadCount(chatIdFromCache, data.messageId);
       }
     };
 
@@ -501,7 +510,7 @@ export function ChatSection({
       socket.off('messageDeleted', handleMessageDeleted);
       socket.off('messageRead', handleMessageRead);
     };
-  }, [socket, currentUser.id, selectedChat, messagesCache]);
+  }, [socket, currentUser?.id, selectedChat, messagesCache]);
 
   // Intersection Observer to mark messages as read when they come into viewport
   useEffect(() => {
