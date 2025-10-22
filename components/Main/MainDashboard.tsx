@@ -19,6 +19,7 @@ export function MainDashboard() {
 
   // Safe client-only currentUser
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -26,6 +27,8 @@ export function MainDashboard() {
       setCurrentUser(raw ? JSON.parse(raw) : null);
     } catch {
       setCurrentUser(null);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
@@ -71,6 +74,10 @@ export function MainDashboard() {
     setActiveTab("settings");
     setSelectedSetting("profile"); // Default to profile view
   };
+
+  if (isLoading) {
+    return <div>Loading...</div>; // Show loading while checking auth
+  }
 
   if (!currentUser?.id) {
     // Redirect to login if no user is authenticated
