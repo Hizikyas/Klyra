@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { SettingsSidebar } from "./SettingsSidebar";
 import { SettingsContent } from "./SettingsContent";
 import { IoCheckmarkDone } from "react-icons/io5";
+import { FaFile, FaFilePdf, FaFileWord, FaFileExcel } from "react-icons/fa";
 
 interface ChatSectionProps {
   activeTab: string;
@@ -19,7 +20,7 @@ interface ChatSectionProps {
   onToggleRightPanel?: () => void;
   selectedSetting: string | null;
   onSettingSelect: (setting: string) => void;
-  socket: any; // Type this properly if possible
+  socket: any; 
 }
 
 interface ChatItem {
@@ -42,10 +43,12 @@ interface Message {
   sender: string;
   content: string;
   timestamp: string;
-  createdAt: string; // Store raw date string for grouping
+  createdAt: string; 
   isOwn: boolean;
-  isRead?: boolean; // Read status from database
-  status?: 'sending' | 'sent' | 'read'; // Message status for own messages (Telegram-style)
+  isRead?: boolean;
+  status?: 'sending' | 'sent' | 'read'; 
+  mediaUrl?: string;
+  mediaType?: string;
 }
 
 export function ChatSection({
@@ -62,21 +65,24 @@ export function ChatSection({
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messagesCache, setMessagesCache] = useState<Record<string, Message[]>>({});
-  const [loading, setLoading] = useState(false); // State for loading messages of selected chat
+  const [loading, setLoading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [readMessages, setReadMessages] = useState<Set<string>>(new Set());
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-      if (typeof window === "undefined") return;
-      try {
-        const raw = sessionStorage.getItem("currentUser");
-        setCurrentUser(raw ? JSON.parse(raw) : {});
-      } catch {
-        setCurrentUser({});
-      }
-    }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = sessionStorage.getItem("currentUser");
+      setCurrentUser(raw ? JSON.parse(raw) : {});
+    } catch {
+      setCurrentUser({});
+    }
+  }, []);
+
   // Helper to format timestamp consistently (parse as UTC if no TZ, display in fixed UTC with 12-hour AM/PM)
   const formatTimestamp = (dateStr?: string | Date, includeDate: boolean = false): string => {
     let dateInput = dateStr;
@@ -130,6 +136,14 @@ export function ChatSection({
     return grouped;
   };
 
+  const getFileIcon = (mediaType?: string) => {
+    if (!mediaType) return <FaFile className="h-6 w-6" />;
+    if (mediaType.includes('pdf')) return <FaFilePdf className="h-6 w-6 text-red-500" />;
+    if (mediaType.includes('word')) return <FaFileWord className="h-6 w-6 text-blue-500" />;
+    if (mediaType.includes('excel') || mediaType.includes('spreadsheet')) return <FaFileExcel className="h-6 w-6 text-green-500" />;
+    return <FaFile className="h-6 w-6" />;
+  };
+
   // Ensure a chat item exists/updated and moved to top
   const upsertChatPreview = (
     chatId: string,
@@ -154,7 +168,7 @@ export function ChatSection({
           ...existing,
           name: opts.name ?? existing.name,
           avatar: opts.avatar ?? existing.avatar,
-          lastMessage: opts.lastMessage ?? existing.lastMessage,
+          lastMessage: opts.lastMessage ?? (existing.lastMessage.includes('Media') ? 'Media' : existing.lastMessage),
           timestamp: timestamp ?? existing.timestamp,
           unread: opts.resetUnread
             ? 0
@@ -224,7 +238,7 @@ export function ChatSection({
             const mappedChats: ChatItem[] = data.conversations.map((conv: any) => ({
               id: conv.participantId,
               name: conv.participant?.username || 'User',
-              lastMessage: conv.lastMessage?.content || '',
+              lastMessage: conv.lastMessage?.content || (conv.lastMessage?.mediaUrl ? 'Media' : ''), // CHANGED: Handle media in preview
               timestamp: conv.lastMessage?.createdAt ? formatTimestamp(conv.lastMessage.createdAt) : '',
               // Use the actual unread count from server, ensuring it's a number
               unread: Math.max(0, conv.unreadCount ?? conv.unread ?? 0),
@@ -342,7 +356,9 @@ export function ChatSection({
           const mapped: Message[] = data.messages.map((m: any) => ({
             id: m.id,
             sender: m.senderId === currentUser.id ? 'You' : m.sender?.username || 'User',
-            content: m.content || m.mediaUrl || 'Media',
+            content: m.content || '',
+            mediaUrl: m.mediaUrl || undefined,
+            mediaType: m.mediaType || undefined,
             timestamp: formatTimestamp(m.createdAt),
             createdAt: m.createdAt,
             isOwn: m.senderId === currentUser?.id,
@@ -359,7 +375,8 @@ export function ChatSection({
             upsertChatPreview(selectedChat, {
               name: data?.recipient?.username || selectedChatObj?.name,
               avatar: data?.recipient?.avatar || selectedChatObj?.avatar,
-              lastMessage: last.content,
+              // CHANGED: Better preview text for media
+              lastMessage: last.content || (last.mediaUrl ? (last.mediaType?.startsWith('image/') ? 'Image' : 'File') : ''),
               timestamp: last.timestamp,
               resetUnread: true,
               preserveOrder: true,
@@ -423,7 +440,9 @@ export function ChatSection({
       const newMessageObj: Message = {
         id: newMessage.id,
         sender: newMessage.senderId === currentUser.id ? 'You' : newMessage.sender?.username || 'Unknown',
-        content: newMessage.content || newMessage.mediaUrl || 'Media',
+        content: newMessage.content || '',
+        mediaUrl: newMessage.mediaUrl || undefined,
+        mediaType: newMessage.mediaType || undefined,
         timestamp: formatTimestamp(newMessage.createdAt),
         createdAt: newMessage.createdAt,
         isOwn: newMessage.senderId === currentUser?.id,
@@ -447,7 +466,7 @@ export function ChatSection({
       upsertChatPreview(otherUserId, {
         name: otherUserName,
         avatar: otherUserAvatar,
-        lastMessage: newMessage.content || newMessage.mediaUrl || 'Media',
+        lastMessage: newMessage.content || (newMessage.mediaUrl ? (newMessage.mediaType?.startsWith('image/') ? 'Image' : 'File') : 'Media'),
         timestamp: formatTimestamp(newMessage.createdAt),
         incrementUnread: shouldIncrementUnread,
         isFromCurrentUser: newMessage.senderId === currentUser?.id,
@@ -591,32 +610,52 @@ export function ChatSection({
     };
   }, [selectedChat, messages, readMessages]);
 
+  // ADDED: Handle file selection
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) {
+      setSelectedFile(e.target.files[0]);
+      // Optional: Preview or confirm, but for now, send on button click
+    }
+  };
+
+  // ADDED: Trigger file input on Paperclip click
+  const handlePaperclipClick = () => {
+    fileInputRef.current?.click();
+  };
+
   const handleSendMessage = async () => {
-    if (!message.trim() || !selectedChat) return;
+    if ((!message.trim() && !selectedFile) || !selectedChat) return;
 
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
     if (!token) return;
 
     try {
+      // ADDED: Use FormData if file is selected
+      const formData = new FormData();
+      formData.append('content', message.trim());
+      formData.append('recipientId', selectedChat);
+      if (selectedFile) {
+        formData.append('media', selectedFile); // 'media' field for multer
+      }
+
       const res = await fetch('http://localhost:4000/v1/messages', {
         method: 'POST',
         credentials: 'include',
         headers: {
-          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          content: message,
-          recipientId: selectedChat,
-        }),
+        body: formData, 
       });
+
       const data = await res.json();
       if (data?.message) {
         const m = data.message;
         const newMessageObj: Message = {
           id: m.id,
           sender: 'You',
-          content: m.content || m.mediaUrl || 'Media',
+          content: m.content || '',
+          mediaUrl: m.mediaUrl || undefined,
+          mediaType: m.mediaType || undefined,
           timestamp: formatTimestamp(m.createdAt),
           createdAt: m.createdAt,
           isOwn: true,
@@ -630,11 +669,14 @@ export function ChatSection({
           [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
         }));
         setMessage('');
+        setSelectedFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
 
         upsertChatPreview(selectedChat, {
           name: selectedChatObj?.name,
           avatar: selectedChatObj?.avatar,
-          lastMessage: m.content || m.mediaUrl || 'Media',
+          // CHANGED: Better preview for media
+          lastMessage: m.content || (m.mediaUrl ? (m.mediaType?.startsWith('image/') ? 'Image' : 'File') : 'Media'),
           timestamp: formatTimestamp(m.createdAt),
           resetUnread: true,
           isFromCurrentUser: true,
@@ -865,16 +907,40 @@ export function ChatSection({
                               msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
                             )}
                           >
-                            <div className="flex items-center justify-end gap-1 ">
-                            <p className="text-sm pr-[2rem]">{msg.content}</p>
-                            <p
-                              className={cn(
+                            {/* ADDED: Render media if present */}
+                            {msg.mediaUrl && (
+                              <div className="mb-2">
+                                {msg.mediaType?.startsWith('image/') ? (
+                                  <img 
+                                    src={msg.mediaUrl} 
+                                    alt="Sent image" 
+                                    className="max-w-full h-auto rounded-lg cursor-pointer"
+                                    onClick={() => window.open(msg.mediaUrl, '_blank')}
+                                  />
+                                ) : (
+                                  <a 
+                                    href={msg.mediaUrl} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="flex items-center space-x-2 text-blue-300 hover:text-blue-100"
+                                  >
+                                    {getFileIcon(msg.mediaType)}
+                                    <span>Download {msg.mediaType?.split('/')[1]?.toUpperCase() || 'File'}</span>
+                                  </a>
+                                )}
+                              </div>
+                            )}
+                            {/* Render text content (can be caption for media) */}
+                            {msg.content && <p className="text-sm">{msg.content}</p>}
+                            <div className="flex items-center justify-end gap-1 mt-1">
+                              <p
+                                className={cn(
                                   "text-[0.7rem]",
-                                msg.isOwn ? "text-purple-200" : "text-slate-400"
-                              )}
-                            >
-                              {msg.timestamp}
-                            </p>
+                                  msg.isOwn ? "text-purple-200" : "text-slate-400"
+                                )}
+                              >
+                                {msg.timestamp}
+                              </p>
                               {msg.isOwn && (
                                 <div className="ml-1">
                                   {msg.status === 'read' ? (
@@ -897,13 +963,23 @@ export function ChatSection({
 
             <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">
               <div className="flex items-center space-x-2">
+                {/* CHANGED: Paperclip now triggers file input */}
                 <Button
                   variant="ghost"
                   size="icon"
                   className="text-slate-400 hover:text-white hover:bg-slate-700/50"
+                  onClick={handlePaperclipClick}
                 >
                   <Paperclip className="h-5 w-5" />
                 </Button>
+                {/* ADDED: Hidden file input */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" // ADDED: Accept common types; remove to allow all
+                />
                 <div className="flex-1 relative">
                   <Input
                     value={message}
@@ -924,6 +1000,10 @@ export function ChatSection({
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
+              {/* ADDED: Show selected file name if any */}
+              {selectedFile && (
+                <p className="text-sm text-slate-400 mt-2">Selected: {selectedFile.name} (will send with message)</p>
+              )}
             </div>
           </>
         ) : (
