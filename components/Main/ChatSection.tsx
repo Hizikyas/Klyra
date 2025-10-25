@@ -11,6 +11,7 @@ import { SettingsSidebar } from "./SettingsSidebar";
 import { SettingsContent } from "./SettingsContent";
 import { IoCheckmarkDone } from "react-icons/io5";
 import { FaFile, FaFilePdf, FaFileWord, FaFileExcel } from "react-icons/fa";
+import Modal from "../ui/modalIMG";
 
 interface ChatSectionProps {
   activeTab: string;
@@ -71,6 +72,8 @@ export function ChatSection({
   const [readMessages, setReadMessages] = useState<Set<string>>(new Set());
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalImage, setModalImage] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -618,6 +621,12 @@ export function ChatSection({
     }
   };
 
+  // ADDED: Handle image click to open modal
+  const handleImageClick = (imageUrl: string) => {
+    setModalImage(imageUrl);
+    setShowModal(true);
+  };
+
   // ADDED: Trigger file input on Paperclip click
   const handlePaperclipClick = () => {
     fileInputRef.current?.click();
@@ -911,16 +920,16 @@ export function ChatSection({
                             {msg.mediaUrl && (
                               <div className="mb-2">
                                 {msg.mediaType?.startsWith('image/') ? (
-                                  <img 
-                                    src={msg.mediaUrl} 
-                                    alt="Sent image" 
+                                  <img
+                                    src={msg.mediaUrl}
+                                    alt="Sent image"
                                     className="max-w-full h-auto rounded-lg cursor-pointer"
-                                    onClick={() => window.open(msg.mediaUrl, '_blank')}
+                                    onClick={() => handleImageClick(msg.mediaUrl)}
                                   />
                                 ) : (
-                                  <a 
-                                    href={msg.mediaUrl} 
-                                    target="_blank" 
+                                  <a
+                                    href={msg.mediaUrl}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center space-x-2 text-blue-300 hover:text-blue-100"
                                   >
@@ -962,6 +971,43 @@ export function ChatSection({
             </ScrollArea>
 
             <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">
+              {/* ADDED: File preview above input */}
+              {selectedFile && (
+                <div className="mb-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      {selectedFile.type.startsWith('image/') ? (
+                        <img
+                          src={URL.createObjectURL(selectedFile)}
+                          alt="Preview"
+                          className="w-12 h-12 object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center">
+                          {getFileIcon(selectedFile.type || '')}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm text-white font-medium">{selectedFile.name}</p>
+                        <p className="text-xs text-slate-400">
+                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="text-slate-400 hover:text-white hover:bg-slate-700/50"
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center space-x-2">
                 {/* CHANGED: Paperclip now triggers file input */}
                 <Button
@@ -1000,10 +1046,6 @@ export function ChatSection({
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
-              {/* ADDED: Show selected file name if any */}
-              {selectedFile && (
-                <p className="text-sm text-slate-400 mt-2">Selected: {selectedFile.name} (will send with message)</p>
-              )}
             </div>
           </>
         ) : (
@@ -1020,6 +1062,17 @@ export function ChatSection({
           </div>
         )}
       </div>
+
+      {/* ADDED: Modal for image viewing */}
+      {showModal && (
+        <Modal onClose={() => setShowModal(false)}>
+          <img
+            src={modalImage}
+            alt="Full size image"
+            className="max-w-full max-h-full object-contain"
+          />
+        </Modal>
+      )}
     </div>
   );
 }
