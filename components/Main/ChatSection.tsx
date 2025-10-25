@@ -141,9 +141,28 @@ export function ChatSection({
 
   const getFileIcon = (mediaType?: string) => {
     if (!mediaType) return <FaFile className="h-6 w-6" />;
-    if (mediaType.includes('pdf')) return <FaFilePdf className="h-6 w-6 text-red-500" />;
-    if (mediaType.includes('word')) return <FaFileWord className="h-6 w-6 text-blue-500" />;
-    if (mediaType.includes('excel') || mediaType.includes('spreadsheet')) return <FaFileExcel className="h-6 w-6 text-green-500" />;
+    const lowerType = mediaType.toLowerCase();
+    
+    // PDF files
+    if (lowerType.includes('pdf')) return <FaFilePdf className="h-6 w-6 text-red-500" />;
+    
+    // Word documents (old and new formats)
+    if (lowerType.includes('word') || 
+        lowerType.includes('wordprocessingml') || 
+        lowerType.includes('msword') ||
+        lowerType.includes('document') && !lowerType.includes('spreadsheet')) {
+      return <FaFileWord className="h-6 w-6 text-blue-500" />;
+    }
+    
+    // Excel files
+    if (lowerType.includes('excel') || 
+        lowerType.includes('spreadsheet') || 
+        lowerType.includes('spreadsheetml') ||
+        lowerType.includes('csv')) {
+      return <FaFileExcel className="h-6 w-6 text-green-500" />;
+    }
+    
+    // Default file icon
     return <FaFile className="h-6 w-6" />;
   };
 
@@ -916,32 +935,47 @@ export function ChatSection({
                               msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
                             )}
                           >
-                            {/* ADDED: Render media if present */}
+                            {/* ADDED: Render media if present - styled like preview */}
                             {msg.mediaUrl && (
                               <div className="mb-2">
-                                {msg.mediaType?.startsWith('image/') ? (
-                                  <img
-                                    src={msg.mediaUrl}
-                                    alt="Sent image"
-                                    className="max-w-full h-auto rounded-lg cursor-pointer"
-                                    onClick={() => handleImageClick(msg.mediaUrl)}
-                                  />
-                                ) : (
-                                  <a
-                                    href={msg.mediaUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center space-x-2 text-blue-300 hover:text-blue-100"
-                                  >
-                                    {getFileIcon(msg.mediaType)}
-                                    <span>Download {msg.mediaType?.split('/')[1]?.toUpperCase() || 'File'}</span>
-                                  </a>
-                                )}
+                                <div className="p-3 bg-slate-700/30 rounded-lg border border-slate-600/50 max-w-xs">
+                                  <div className="flex items-center space-x-3">
+                                    {msg.mediaType?.startsWith('image/') ? (
+                                      <img
+                                        src={msg.mediaUrl || ''}
+                                        alt="Sent image"
+                                        className="w-12 h-12 object-cover rounded-lg cursor-pointer"
+                                        onClick={() => msg.mediaUrl && handleImageClick(msg.mediaUrl)}
+                                      />
+                                    ) : (
+                                      <div className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center cursor-pointer" onClick={() => msg.mediaUrl && window.open(msg.mediaUrl, '_blank')}>
+                                        {getFileIcon(msg.mediaType || '')}
+                                      </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm text-white font-medium truncate">
+                                        {msg.mediaType?.startsWith('image/') 
+                                          ? 'Image' 
+                                          : (() => {
+                                              const fileName = msg.mediaUrl?.split('/').pop() || 'File';
+                                              try {
+                                                return decodeURIComponent(fileName);
+                                              } catch {
+                                                return fileName;
+                                              }
+                                            })()}
+                                      </p>
+                                      <p className="text-xs text-slate-400">
+                                        {msg.mediaType?.startsWith('image/') ? 'Click to view' : 'Click to download'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             )}
                             {/* Render text content (can be caption for media) */}
                             {msg.content && <p className="text-sm">{msg.content}</p>}
-                            <div className="flex items-center justify-end gap-1 mt-1">
+                            <div className="flex items-center justify-end ">
                               <p
                                 className={cn(
                                   "text-[0.7rem]",
