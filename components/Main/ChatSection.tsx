@@ -900,79 +900,114 @@ export function ChatSection({
                           <span className="text-sm font-medium">{group.date}</span>
                         </div>
                       )}
-                      {group.messages.map((msg) => (
-                        <div
-                          key={msg.id}
-                          className={cn("flex", msg.isOwn ? "justify-end" : "justify-start", "my-2")}
-                          data-message-id={msg.id}
-                          data-is-own={msg.isOwn.toString()}
-                        >
+                        {group.messages.map((msg) => (
                           <div
-                            className={cn(
-                              "max-w-xs lg:max-w-md px-4 py-2 rounded-2xl flex flex-col",
-                              msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
-                            )}
+                            key={msg.id}
+                            className={cn("flex", msg.isOwn ? "justify-end" : "justify-start", "my-2")}
+                            data-message-id={msg.id}
+                            data-is-own={msg.isOwn.toString()}
                           >
-                            {msg.mediaUrl && (
-                              <div className="mb-2">
-                                <div className={`${msg.mediaType?.startsWith('image/') ? "" : "pr-3 bg-slate-700/30 rounded-lg border border-slate-600/50 max-w-xs"}`}>
-                                  <div className="flex items-center space-x-3">
-                                    {msg.mediaType?.startsWith('image/') ? (
-                                      <img
-                                        src={msg.mediaUrl || ''}
-                                        alt="Sent image"
-                                        className="max-w-full max-h-64 object-contain rounded-lg cursor-pointer"
-                                        onClick={() => msg.mediaUrl && handleImageClick(msg.mediaUrl)}
-                                      />
-                                    ) : (
-                                      <div className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center cursor-pointer" onClick={() => msg.mediaUrl && window.open(msg.mediaUrl, '_blank')}>
-                                        {getFileIcon(msg.mediaType || '')}
-                                      </div>
+                            <div
+                              className={cn(
+                                "max-w-xs lg:max-w-md rounded-2xl flex flex-col",
+                                // remove inner padding for images, keep it for other messages
+                                msg.mediaType?.startsWith('image/') ? "w-full" : "px-4 py-2",
+                                msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
+                              )}
+                            >
+                              {/* IMAGE CASE - full-bleed image with overlayed timestamp/check */}
+                              {msg.mediaUrl && msg.mediaType?.startsWith('image/') ? (
+                                <div className="mb-0 w-full">
+                                  <div
+                                    className={cn(
+                                      "relative w-full overflow-hidden rounded-2xl",
+                                      // subtle border/ring depending on sender
+                                      msg.isOwn ? "ring-2 ring-purple-500/40" : "ring-1 ring-slate-600/30"
                                     )}
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm text-white font-medium truncate">
-                                        {msg.mediaType?.startsWith('image/')
-                                          ? 'Image'
-                                          : (() => {
-                                              const fileName = msg.mediaUrl?.split('/').pop() || 'File';
-                                              try {
-                                                return decodeURIComponent(fileName);
-                                              } catch {
-                                                return fileName;
-                                              }
-                                            })()}
-                                      </p>
-                                      <p className="text-xs text-slate-400">
-                                        {!msg.mediaType?.startsWith('image/') && 'Click to download'}
-                                      </p>
+                                  >
+                                    <img
+                                      src={msg.mediaUrl || ''}
+                                      alt="Sent image"
+                                      // make image fill the container; adjust h-64 to taste or use max-h
+                                      className="w-full h-64 object-cover block"
+                                      onClick={() => msg.mediaUrl && handleImageClick(msg.mediaUrl)}
+                                    />
+                                    {/* overlay: timestamp + check; sits above image */}
+                                    <div className="absolute bottom-2 right-2 z-20 flex items-center gap-2 bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm">
+                                      <p className={cn("text-[0.7rem] text-white")}>{msg.timestamp}</p>
+                                      {msg.isOwn && (
+                                        <div className="ml-0">
+                                          {msg.status === 'read' ? (
+                                            <IoCheckmarkDone className="w-5 h-4 text-blue-300" />
+                                          ) : (
+                                            <Check className="w-5 h-4 text-purple-200" />
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
+                                  {/* optional caption/content under image */}
+                                  {msg.content && <p className="text-sm mt-2 px-0">{msg.content}</p>}
                                 </div>
-                              </div>
-                            )}
-                            {msg.content && <p className="text-sm">{msg.content}</p>}
-                            <div className="flex items-center justify-end">
-                              <p
-                                className={cn(
-                                  "text-[0.7rem]",
-                                  msg.isOwn ? "text-purple-200" : "text-slate-400"
-                                )}
-                              >
-                                {msg.timestamp}
-                              </p>
-                              {msg.isOwn && (
-                                <div className="ml-1">
-                                  {msg.status === 'read' ? (
-                                    <IoCheckmarkDone className="w-6 h-5 text-blue-400" />
-                                  ) : (
-                                    <Check className="w-6 h-4 text-purple-200" />
+                              ) : (
+                                /* NON-IMAGE CASE - keep previous layout */
+                                <>
+                                  {msg.mediaUrl && (
+                                    <div className="mb-2">
+                                      <div className="pr-3 bg-slate-700/30 rounded-lg border border-slate-600/50 max-w-xs">
+                                        <div className="flex items-center space-x-3">
+                                          <div
+                                            className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center cursor-pointer"
+                                            onClick={() => msg.mediaUrl && window.open(msg.mediaUrl, '_blank')}
+                                          >
+                                            {getFileIcon(msg.mediaType || '')}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm text-white font-medium truncate">
+                                              {!msg.mediaType?.startsWith('image/') &&
+                                                (() => {
+                                                  const fileName = msg.mediaUrl?.split('/').pop() || 'File';
+                                                  try {
+                                                    return decodeURIComponent(fileName);
+                                                  } catch {
+                                                    return fileName;
+                                                  }
+                                                })()}
+                                            </p>
+                                            <p className="text-xs text-slate-400">
+                                              {!msg.mediaType?.startsWith('image/') && 'Click to download'}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
                                   )}
-                                </div>
+                                  {msg.content && <p className="text-sm">{msg.content}</p>}
+                                  {/* timestamp/check for non-image messages */}
+                                  <div className="flex items-center justify-end mt-1">
+                                    <p
+                                      className={cn(
+                                        "text-[0.7rem]",
+                                        msg.isOwn ? "text-purple-200" : "text-slate-400"
+                                      )}
+                                    >
+                                      {msg.timestamp}
+                                    </p>
+                                    {msg.isOwn && (
+                                      <div className="ml-1">
+                                        {msg.status === 'read' ? (
+                                          <IoCheckmarkDone className="w-6 h-5 text-blue-400" />
+                                        ) : (
+                                          <Check className="w-6 h-4 text-purple-200" />
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </>
                               )}
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   ))
                 )}
