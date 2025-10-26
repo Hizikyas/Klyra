@@ -21,7 +21,7 @@ interface ChatSectionProps {
   onToggleRightPanel?: () => void;
   selectedSetting: string | null;
   onSettingSelect: (setting: string) => void;
-  socket: any; 
+  socket: any;
   isRightCollapsed?: boolean;
 }
 
@@ -34,10 +34,10 @@ interface ChatItem {
   avatar?: string;
   online: boolean;
   isGroup?: boolean;
-  lastReadMessage?: string; // Last message that was read by the current user
-  lastReadTimestamp?: string; // Timestamp of the last read message
-  lastMessageStatus?: 'sent' | 'read'; // Status of the last message
-  lastMessageFromCurrentUser?: boolean; // Whether the last message is from current user
+  lastReadMessage?: string;
+  lastReadTimestamp?: string;
+  lastMessageStatus?: 'sent' | 'read';
+  lastMessageFromCurrentUser?: boolean;
 }
 
 interface Message {
@@ -45,10 +45,10 @@ interface Message {
   sender: string;
   content: string;
   timestamp: string;
-  createdAt: string; 
+  createdAt: string;
   isOwn: boolean;
   isRead?: boolean;
-  status?: 'sending' | 'sent' | 'read'; 
+  status?: 'sending' | 'sent' | 'read';
   mediaUrl?: string;
   mediaType?: string;
 }
@@ -90,7 +90,7 @@ export function ChatSection({
     }
   }, []);
 
-  // Helper to format timestamp consistently (parse as UTC if no TZ, display in fixed UTC with 12-hour AM/PM)
+  // Helper to format timestamp consistently
   const formatTimestamp = (dateStr?: string | Date, includeDate: boolean = false): string => {
     let dateInput = dateStr;
     if (!dateInput) {
@@ -117,7 +117,7 @@ export function ChatSection({
     });
   };
 
-  // Group messages by date for rendering headers
+  // Group messages by date
   const groupMessagesByDate = (messages: Message[]) => {
     const grouped: { date: string; messages: Message[] }[] = [];
     let currentDate = '';
@@ -146,31 +146,26 @@ export function ChatSection({
   const getFileIcon = (mediaType?: string) => {
     if (!mediaType) return <FaFile className="h-6 w-6" />;
     const lowerType = mediaType.toLowerCase();
-    
-    // PDF files
     if (lowerType.includes('pdf')) return <FaFilePdf className="h-6 w-6 text-red-500" />;
-    
-    // Word documents (old and new formats)
-    if (lowerType.includes('word') || 
-        lowerType.includes('wordprocessingml') || 
-        lowerType.includes('msword') ||
-        lowerType.includes('document') && !lowerType.includes('spreadsheet')) {
+    if (
+      lowerType.includes('word') ||
+      lowerType.includes('wordprocessingml') ||
+      lowerType.includes('msword') ||
+      (lowerType.includes('document') && !lowerType.includes('spreadsheet'))
+    ) {
       return <FaFileWord className="h-6 w-6 text-blue-500" />;
     }
-    
-    // Excel files
-    if (lowerType.includes('excel') || 
-        lowerType.includes('spreadsheet') || 
-        lowerType.includes('spreadsheetml') ||
-        lowerType.includes('csv')) {
+    if (
+      lowerType.includes('excel') ||
+      lowerType.includes('spreadsheet') ||
+      lowerType.includes('spreadsheetml') ||
+      lowerType.includes('csv')
+    ) {
       return <FaFileExcel className="h-6 w-6 text-green-500" />;
     }
-    
-    // Default file icon
     return <FaFile className="h-6 w-6" />;
   };
 
-  // Ensure a chat item exists/updated and moved to top
   const upsertChatPreview = (
     chatId: string,
     opts: {
@@ -181,8 +176,8 @@ export function ChatSection({
       incrementUnread?: boolean;
       resetUnread?: boolean;
       preserveOrder?: boolean;
-      isFromCurrentUser?: boolean; // Whether the message is from current user
-      messageStatus?: 'sent' | 'read'; // Status of the message
+      isFromCurrentUser?: boolean;
+      messageStatus?: 'sent' | 'read';
     } = {}
   ) => {
     setChats((prev) => {
@@ -201,14 +196,12 @@ export function ChatSection({
             : opts.incrementUnread
             ? (existing.unread || 0) + 1
             : existing.unread,
-          // Update last read message logic
-          lastReadMessage: opts.isFromCurrentUser 
+          lastReadMessage: opts.isFromCurrentUser
             ? opts.lastMessage ?? existing.lastReadMessage
             : existing.lastReadMessage,
-          lastReadTimestamp: opts.isFromCurrentUser 
+          lastReadTimestamp: opts.isFromCurrentUser
             ? timestamp ?? existing.lastReadTimestamp
             : existing.lastReadTimestamp,
-          // Update message status
           lastMessageStatus: opts.isFromCurrentUser ? (opts.messageStatus || 'sent') : existing.lastMessageStatus,
           lastMessageFromCurrentUser: opts.isFromCurrentUser ?? existing.lastMessageFromCurrentUser,
         };
@@ -238,7 +231,6 @@ export function ChatSection({
     });
   };
 
-  // Load conversations from API and hydrate from sessionStorage
   useEffect(() => {
     const loadConversations = async () => {
       const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
@@ -257,16 +249,15 @@ export function ChatSection({
           },
           credentials: 'include',
         });
-        
+
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data?.conversations)) {
             const mappedChats: ChatItem[] = data.conversations.map((conv: any) => ({
               id: conv.participantId,
               name: conv.participant?.username || 'User',
-              lastMessage: conv.lastMessage?.content || (conv.lastMessage?.mediaUrl ? 'Media' : ''), // CHANGED: Handle media in preview
+              lastMessage: conv.lastMessage?.content || (conv.lastMessage?.mediaUrl ? 'Media' : ''),
               timestamp: conv.lastMessage?.createdAt ? formatTimestamp(conv.lastMessage.createdAt) : '',
-              // Use the actual unread count from server, ensuring it's a number
               unread: Math.max(0, conv.unreadCount ?? conv.unread ?? 0),
               avatar: conv.participant?.avatar,
               online: false,
@@ -289,14 +280,10 @@ export function ChatSection({
     };
 
     loadConversations();
-    
-    // Refresh conversations every 30 seconds to keep unread counts accurate
     const interval = setInterval(loadConversations, 30000);
-    
     return () => clearInterval(interval);
   }, []);
 
-  // Persist chats to sessionStorage whenever they change
   useEffect(() => {
     try {
       sessionStorage.setItem('recentChats', JSON.stringify(chats));
@@ -305,7 +292,6 @@ export function ChatSection({
     }
   }, [chats]);
 
-  // Listen to search selection to add/select chat
   useEffect(() => {
     const onAddChatFromSearch = (e: Event) => {
       const custom = e as CustomEvent;
@@ -335,7 +321,6 @@ export function ChatSection({
     return () => window.removeEventListener('klyra:addChatFromSearch', onAddChatFromSearch as EventListener);
   }, [onChatSelect]);
 
-  // helper: find chatId for a messageId in messagesCache
   const findChatIdByMessageId = (messageId: string | undefined) => {
     if (!messageId) return null;
     for (const [chatId, msgs] of Object.entries(messagesCache)) {
@@ -344,7 +329,6 @@ export function ChatSection({
     return null;
   };
 
-  // Load messages for selected chat with caching (hydrate from cache, always fetch latest)
   useEffect(() => {
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
     if (!token || !selectedChat) {
@@ -352,14 +336,11 @@ export function ChatSection({
       return;
     }
 
-    // show internal loading flag
     setLoading(true);
     setMessages([]);
 
-    // If we have cache, show it immediately while we fetch the latest from server
     if (messagesCache[selectedChat]) {
       setMessages(messagesCache[selectedChat]);
-      // don't return — still fetch latest to ensure UI reflects server
     }
 
     const fetchMessages = async () => {
@@ -392,7 +373,6 @@ export function ChatSection({
             status: m.senderId === currentUser.id ? (m.isRead ? 'read' as const : 'sent' as const) : undefined,
           }));
 
-          // update cache and UI with server data (overwrites stale cache)
           setMessagesCache((prev) => ({ ...prev, [selectedChat]: mapped }));
           setMessages(mapped);
 
@@ -401,7 +381,6 @@ export function ChatSection({
             upsertChatPreview(selectedChat, {
               name: data?.recipient?.username || selectedChatObj?.name,
               avatar: data?.recipient?.avatar || selectedChatObj?.avatar,
-              // CHANGED: Better preview text for media
               lastMessage: last.content || (last.mediaUrl ? (last.mediaType?.startsWith('image/') ? 'Image' : 'File') : ''),
               timestamp: last.timestamp,
               resetUnread: true,
@@ -426,7 +405,6 @@ export function ChatSection({
     fetchMessages();
   }, [selectedChat, currentUser?.id]);
 
-  // Reset unread count and mark messages as read when opening a chat
   useEffect(() => {
     if (!selectedChat) {
       setLoading(false);
@@ -434,10 +412,8 @@ export function ChatSection({
       return;
     }
 
-    // optimistic UI: mark preview unread->0 immediately
     upsertChatPreview(selectedChat, { resetUnread: true, preserveOrder: true });
 
-    // mark messages in UI/cache as read (so sidebar shows double-check for own messages)
     setMessages((prev) =>
       prev.map((m) => (m.isOwn ? { ...m, status: m.status === 'read' ? 'read' : m.status } : { ...m, isRead: true }))
     );
@@ -447,19 +423,15 @@ export function ChatSection({
         m.isOwn ? { ...m, status: m.status === 'read' ? 'read' : m.status } : { ...m, isRead: true }
       ),
     }));
-
-    // notify server to mark messages as read for this conversation
-    // markChatAsRead(selectedChat);
   }, [selectedChat]);
 
-  // Handle incoming socket events
   useEffect(() => {
     if (!socket) return;
 
     const handleNewMessage = (newMessage: any) => {
       const isForThisChat =
-        (!!newMessage.recipientId && newMessage.recipientId === currentUser?.id && newMessage.senderId === selectedChat) ||
-        (!!newMessage.recipientId && newMessage.senderId === currentUser?.id && newMessage.recipientId === selectedChat);
+        (newMessage.recipientId && newMessage.recipientId === currentUser?.id && newMessage.senderId === selectedChat) ||
+        (newMessage.recipientId && newMessage.senderId === currentUser?.id && newMessage.recipientId === selectedChat);
 
       if (!selectedChat || !isForThisChat) return;
 
@@ -486,7 +458,6 @@ export function ChatSection({
       const otherUserName = newMessage.senderId === currentUser.id ? newMessage.recipient?.username : newMessage.sender?.username;
       const otherUserAvatar = newMessage.senderId === currentUser.id ? newMessage.recipient?.avatar : newMessage.sender?.avatar;
 
-      // Only increment unread count if the message is from someone else and not for the currently selected chat
       const shouldIncrementUnread = newMessage.senderId !== currentUser?.id && otherUserId !== selectedChat;
 
       upsertChatPreview(otherUserId, {
@@ -511,7 +482,6 @@ export function ChatSection({
     };
 
     const handleMessageRead = (data: { messageId: string; isRead: boolean }) => {
-      // Update message status in open chat if present
       setMessages((prev) =>
         prev.map((msg: Message) =>
           msg.id === data.messageId ? { ...msg, isRead: data.isRead, status: data.isRead ? 'read' as const : 'sent' as const } : msg
@@ -527,7 +497,6 @@ export function ChatSection({
         }));
       }
 
-      // Find the chat where this message belongs (use cache) and update its preview status
       const chatIdFromCache = findChatIdByMessageId(data.messageId);
       const chatIdToUpdate = chatIdFromCache ?? selectedChat ?? null;
       if (chatIdToUpdate) {
@@ -536,11 +505,6 @@ export function ChatSection({
           preserveOrder: true,
           messageStatus: data.isRead ? 'read' : 'sent',
         });
-      }
-
-      // Decrement unread for that chat if needed
-      if (chatIdFromCache) {
-        // updateUnreadCount(chatIdFromCache, data.messageId);
       }
     };
 
@@ -557,7 +521,6 @@ export function ChatSection({
     };
   }, [socket, currentUser?.id, selectedChat, messagesCache]);
 
-  // Intersection Observer to mark messages as read when they come into viewport
   useEffect(() => {
     if (!selectedChat) return;
 
@@ -574,7 +537,6 @@ export function ChatSection({
             if (messageId && !readMessages.has(messageId)) {
               setReadMessages(prev => new Set([...prev, messageId]));
 
-              // Only mark as read if it's not our own message (received messages)
               if (!isOwnMessage) {
                 unreadMessageIds.push(messageId);
               }
@@ -582,7 +544,6 @@ export function ChatSection({
           }
         });
 
-        // Mark all unread received messages as read in bulk
         if (unreadMessageIds.length > 0) {
           const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
           if (token) {
@@ -595,10 +556,8 @@ export function ChatSection({
               },
               body: JSON.stringify({ recipientId: selectedChat }),
             }).then(() => {
-              // Update local state to mark messages as read and update sender's status
               setMessages(prev => prev.map(msg => {
                 if (msg.isOwn && msg.status === 'sent') {
-                  // Update sender's message status to 'read' when recipient sees it
                   return { ...msg, status: 'read' as const };
                 }
                 return msg;
@@ -614,11 +573,10 @@ export function ChatSection({
                 }) || []
               }));
 
-              // Update chat preview to remove unread count
               upsertChatPreview(selectedChat, {
                 resetUnread: true,
                 preserveOrder: true,
-                messageStatus: 'read', // Update status to read for sender
+                messageStatus: 'read',
               });
             }).catch(e => console.warn('Failed to mark messages as read', e));
           }
@@ -627,7 +585,6 @@ export function ChatSection({
       { threshold: 0.5 }
     );
 
-    // Observe all message elements
     const messageElements = document.querySelectorAll('[data-message-id]');
     messageElements.forEach(el => observer.observe(el));
 
@@ -636,26 +593,21 @@ export function ChatSection({
     };
   }, [selectedChat, messages, readMessages]);
 
-  // ADDED: Handle file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
       setSelectedFile(e.target.files[0]);
-      // Optional: Preview or confirm, but for now, send on button click
     }
   };
 
-  // ADDED: Handle image click to open modal
   const handleImageClick = (imageUrl: string) => {
     setModalImage(imageUrl);
     setShowModal(true);
   };
 
-  // ADDED: Trigger file input on Paperclip click
   const handlePaperclipClick = () => {
     fileInputRef.current?.click();
   };
 
-  // Handle scroll down to latest messages
   const handleScrollDown = () => {
     if (lastMessageRef.current) {
       lastMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -663,19 +615,18 @@ export function ChatSection({
     }
   };
 
-  // Check if user is scrolled up from the latest message
   useEffect(() => {
     if (!selectedChat || !scrollAreaRef.current) return;
 
     const scrollArea = scrollAreaRef.current;
     const checkScrollPosition = () => {
       const { scrollTop, scrollHeight, clientHeight } = scrollArea;
-      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100; // 100px threshold
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100;
       setShowScrollDownButton(!isNearBottom);
     };
 
     scrollArea.addEventListener('scroll', checkScrollPosition);
-    checkScrollPosition(); // Initial check
+    checkScrollPosition();
 
     return () => scrollArea.removeEventListener('scroll', checkScrollPosition);
   }, [selectedChat, messages]);
@@ -687,12 +638,11 @@ export function ChatSection({
     if (!token) return;
 
     try {
-      // ADDED: Use FormData if file is selected
       const formData = new FormData();
       formData.append('content', message.trim());
       formData.append('recipientId', selectedChat);
       if (selectedFile) {
-        formData.append('media', selectedFile); // 'media' field for multer
+        formData.append('media', selectedFile);
       }
 
       const res = await fetch('http://localhost:4000/v1/messages', {
@@ -701,7 +651,7 @@ export function ChatSection({
         headers: {
           Authorization: `Bearer ${token}`,
         },
-        body: formData, 
+        body: formData,
       });
 
       const data = await res.json();
@@ -719,7 +669,7 @@ export function ChatSection({
           isRead: false,
           status: 'sent' as const,
         };
-        
+
         setMessages((prev) => [...prev, newMessageObj]);
         setMessagesCache((prev) => ({
           ...prev,
@@ -732,7 +682,6 @@ export function ChatSection({
         upsertChatPreview(selectedChat, {
           name: selectedChatObj?.name,
           avatar: selectedChatObj?.avatar,
-          // CHANGED: Better preview for media
           lastMessage: m.content || (m.mediaUrl ? (m.mediaType?.startsWith('image/') ? 'Image' : 'File') : 'Media'),
           timestamp: formatTimestamp(m.createdAt),
           resetUnread: true,
@@ -864,7 +813,7 @@ export function ChatSection({
 
       <div
         className={cn(
-          "flex-1 flex flex-col bg-slate-900/10",
+          "flex-1 flex flex-col bg-slate-900/10 relative",
           isMobile ? (selectedChat ? "w-full" : "hidden") : "flex-1"
         )}
       >
@@ -920,7 +869,7 @@ export function ChatSection({
               </div>
             </div>
 
-            <ScrollArea ref={scrollAreaRef} className="flex-1 scrollbar-custom relative">
+            <ScrollArea ref={scrollAreaRef} className="flex-1 scrollbar-custom">
               <div className="p-4 space-y-6 min-h-full">
                 {loading ? (
                   <div className="flex justify-center items-center h-full">
@@ -952,8 +901,8 @@ export function ChatSection({
                         </div>
                       )}
                       {group.messages.map((msg) => (
-                        <div 
-                          key={msg.id} 
+                        <div
+                          key={msg.id}
                           className={cn("flex", msg.isOwn ? "justify-end" : "justify-start", "my-2")}
                           data-message-id={msg.id}
                           data-is-own={msg.isOwn.toString()}
@@ -964,7 +913,6 @@ export function ChatSection({
                               msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
                             )}
                           >
-                            {/* ADDED: Render media if present - styled like preview */}
                             {msg.mediaUrl && (
                               <div className="mb-2">
                                 <div className={`${msg.mediaType?.startsWith('image/') ? "" : "pr-3 bg-slate-700/30 rounded-lg border border-slate-600/50 max-w-xs"}`}>
@@ -1002,7 +950,6 @@ export function ChatSection({
                                 </div>
                               </div>
                             )}
-                            {/* Render text content (can be caption for media) */}
                             {msg.content && <p className="text-sm">{msg.content}</p>}
                             <div className="flex items-center justify-end">
                               <p
@@ -1023,7 +970,6 @@ export function ChatSection({
                                 </div>
                               )}
                             </div>
-                        
                           </div>
                         </div>
                       ))}
@@ -1034,12 +980,11 @@ export function ChatSection({
               </div>
             </ScrollArea>
 
-            {/* Scroll down button */}
             {showScrollDownButton && (
-              <div className={cn("absolute bottom-24 z-50", isRightCollapsed ? "right-2" : "right-4")}>
+              <div className="absolute bottom-24 right-4 z-50 pointer-events-none">
                 <Button
                   onClick={handleScrollDown}
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg animate-bounce"
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg animate-bounce pointer-events-auto"
                   size="icon"
                 >
                   <ChevronDown className="h-5 w-5" />
@@ -1048,7 +993,6 @@ export function ChatSection({
             )}
 
             <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">
-              {/* ADDED: File preview above input */}
               {selectedFile && (
                 <div className="mb-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600/50">
                   <div className="flex items-center justify-between">
@@ -1086,7 +1030,6 @@ export function ChatSection({
                 </div>
               )}
               <div className="flex items-center space-x-2">
-                {/* CHANGED: Paperclip now triggers file input */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -1095,13 +1038,12 @@ export function ChatSection({
                 >
                   <Paperclip className="h-5 w-5" />
                 </Button>
-                {/* ADDED: Hidden file input */}
                 <input
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileChange}
                   className="hidden"
-                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" // ADDED: Accept common types; remove to allow all
+                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
                 />
                 <div className="flex-1 relative">
                   <Input
@@ -1140,7 +1082,6 @@ export function ChatSection({
         )}
       </div>
 
-      {/* ADDED: Modal for image viewing */}
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>
           <img
