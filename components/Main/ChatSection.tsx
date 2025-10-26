@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Send, Paperclip, Smile, Video, Phone, MessageCircle, ArrowLeft, Loader2, Check, CheckCheck } from "lucide-react";
+import { Send, Paperclip, Smile, Video, Phone, MessageCircle, ArrowLeft, Loader2, Check, CheckCheck, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,6 +22,7 @@ interface ChatSectionProps {
   selectedSetting: string | null;
   onSettingSelect: (setting: string) => void;
   socket: any; 
+  isRightCollapsed?: boolean;
 }
 
 interface ChatItem {
@@ -61,6 +62,7 @@ export function ChatSection({
   selectedSetting,
   onSettingSelect,
   socket,
+  isRightCollapsed = false,
 }: ChatSectionProps) {
   const [message, setMessage] = useState("");
   const [chats, setChats] = useState<ChatItem[]>([]);
@@ -75,6 +77,8 @@ export function ChatSection({
   const [showModal, setShowModal] = useState(false);
   const [modalImage, setModalImage] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showScrollDownButton, setShowScrollDownButton] = useState(false);
+  const lastMessageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -651,6 +655,31 @@ export function ChatSection({
     fileInputRef.current?.click();
   };
 
+  // Handle scroll down to latest messages
+  const handleScrollDown = () => {
+    if (lastMessageRef.current) {
+      lastMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      setShowScrollDownButton(false);
+    }
+  };
+
+  // Check if user is scrolled up from the latest message
+  useEffect(() => {
+    if (!selectedChat || !scrollAreaRef.current) return;
+
+    const scrollArea = scrollAreaRef.current;
+    const checkScrollPosition = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollArea;
+      const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100; // 100px threshold
+      setShowScrollDownButton(!isNearBottom);
+    };
+
+    scrollArea.addEventListener('scroll', checkScrollPosition);
+    checkScrollPosition(); // Initial check
+
+    return () => scrollArea.removeEventListener('scroll', checkScrollPosition);
+  }, [selectedChat, messages]);
+
   const handleSendMessage = async () => {
     if ((!message.trim() && !selectedFile) || !selectedChat) return;
 
@@ -891,7 +920,7 @@ export function ChatSection({
               </div>
             </div>
 
-            <ScrollArea ref={scrollAreaRef} className="flex-1 scrollbar-custom">
+            <ScrollArea ref={scrollAreaRef} className="flex-1 scrollbar-custom relative">
               <div className="p-4 space-y-6 min-h-full">
                 {loading ? (
                   <div className="flex justify-center items-center h-full">
@@ -938,13 +967,13 @@ export function ChatSection({
                             {/* ADDED: Render media if present - styled like preview */}
                             {msg.mediaUrl && (
                               <div className="mb-2">
-                                <div className="p-3 bg-slate-700/30 rounded-lg border border-slate-600/50 max-w-xs">
+                                <div className={`${msg.mediaType?.startsWith('image/') ? "" : "pr-3 bg-slate-700/30 rounded-lg border border-slate-600/50 max-w-xs"}`}>
                                   <div className="flex items-center space-x-3">
                                     {msg.mediaType?.startsWith('image/') ? (
                                       <img
                                         src={msg.mediaUrl || ''}
                                         alt="Sent image"
-                                        className="w-12 h-12 object-cover rounded-lg cursor-pointer"
+                                        className="max-w-full max-h-64 object-contain rounded-lg cursor-pointer"
                                         onClick={() => msg.mediaUrl && handleImageClick(msg.mediaUrl)}
                                       />
                                     ) : (
@@ -954,8 +983,8 @@ export function ChatSection({
                                     )}
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm text-white font-medium truncate">
-                                        {msg.mediaType?.startsWith('image/') 
-                                          ? 'Image' 
+                                        {msg.mediaType?.startsWith('image/')
+                                          ? 'Image'
                                           : (() => {
                                               const fileName = msg.mediaUrl?.split('/').pop() || 'File';
                                               try {
@@ -966,7 +995,7 @@ export function ChatSection({
                                             })()}
                                       </p>
                                       <p className="text-xs text-slate-400">
-                                        {msg.mediaType?.startsWith('image/') ? 'Click to view' : 'Click to download'}
+                                        {!msg.mediaType?.startsWith('image/') && 'Click to download'}
                                       </p>
                                     </div>
                                   </div>
@@ -975,7 +1004,7 @@ export function ChatSection({
                             )}
                             {/* Render text content (can be caption for media) */}
                             {msg.content && <p className="text-sm">{msg.content}</p>}
-                            <div className="flex items-center justify-end ">
+                            <div className="flex items-center justify-end">
                               <p
                                 className={cn(
                                   "text-[0.7rem]",
@@ -994,15 +1023,29 @@ export function ChatSection({
                                 </div>
                               )}
                             </div>
+                        
                           </div>
                         </div>
                       ))}
                     </div>
                   ))
                 )}
-                <div ref={messagesEndRef} />
+                <div ref={lastMessageRef} />
               </div>
             </ScrollArea>
+
+            {/* Scroll down button */}
+            {showScrollDownButton && (
+              <div className={cn("absolute bottom-24 z-50", isRightCollapsed ? "right-2" : "right-4")}>
+                <Button
+                  onClick={handleScrollDown}
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg animate-bounce"
+                  size="icon"
+                >
+                  <ChevronDown className="h-5 w-5" />
+                </Button>
+              </div>
+            )}
 
             <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">
               {/* ADDED: File preview above input */}

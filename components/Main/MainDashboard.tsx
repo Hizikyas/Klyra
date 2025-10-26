@@ -108,6 +108,7 @@ export function MainDashboard() {
           selectedSetting={selectedSetting}
           onSettingSelect={setSelectedSetting}
           socket={socket}
+          isRightCollapsed={isRightCollapsed}
         />
         <div className="hidden xl:block">
           <RightSidebar selectedChat={selectedChat} collapsed={isRightCollapsed} onClose={() => setIsRightCollapsed(true)} />
