@@ -111,6 +111,7 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
     // Prevent adding self to messages sidebar
     if (u?.id && (currentUser?.id === u.id || currentUser?.username === u.username)) {
       setIsOpen(false)
+      setShowMobileSearch(false)
       return
     }
     // Dispatch event to add chat to sidebar
@@ -123,10 +124,15 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
       isRead: u.lastMessage ? !!u.lastMessage?.isRead : undefined,
     }}))
     setIsOpen(false)
+    setShowMobileSearch(false)
   }
 
   return (
-    <header className="h-16 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 px-4 lg:px-6 flex items-center justify-between relative z-50">
+    <>
+      {showMobileSearch && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] md:hidden" onClick={() => setShowMobileSearch(false)} />
+      )}
+      <header className="h-16 bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50 px-4 lg:px-6 flex items-center justify-between relative z-50">
       <div className="flex items-center space-x-4">
         <Button
           variant="ghost"
@@ -235,8 +241,8 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
 
       <div className="flex items-center space-x-2 lg:space-x-4">
         {showMobileSearch && (
-          <div className="md:hidden flex-1 max-w-md mr-4">
-            <div className="relative w-full" ref={containerRef}>
+          <div className="md:hidden fixed top-16 left-0 right-0 z-[101] p-4 bg-slate-800/95 backdrop-blur-sm border-b border-slate-700/50">
+            <div className="relative w-full max-w-md mx-auto" ref={containerRef}>
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
               <Input
                 placeholder="Search users or chats..."
@@ -377,6 +383,7 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
         </div>
       </div>
     </header>
+    </>
   )
 }
 
