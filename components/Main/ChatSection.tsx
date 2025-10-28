@@ -12,6 +12,7 @@ import { SettingsContent } from "./SettingsContent";
 import { IoCheckmarkDone } from "react-icons/io5";
 import { FaFile, FaFilePdf, FaFileWord, FaFileExcel } from "react-icons/fa";
 import Modal from "../ui/modalIMG";
+import { RightSidebar } from "./RightSidebar";
 
 interface ChatSectionProps {
   activeTab: string;
@@ -79,6 +80,7 @@ export function ChatSection({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showScrollDownButton, setShowScrollDownButton] = useState(false);
   const lastMessageRef = useRef<HTMLDivElement>(null);
+  const [showRightSidebarModal, setShowRightSidebarModal] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -823,7 +825,14 @@ export function ChatSection({
               <div className="flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={onToggleRightPanel}
+                  onClick={() => {
+                    if (isMobile) {
+                      // For mobile, show modal
+                      setShowRightSidebarModal(true);
+                    } else {
+                      onToggleRightPanel?.();
+                    }
+                  }}
                   className="flex items-center space-x-3 group"
                 >
                   {isMobile && (
@@ -869,7 +878,7 @@ export function ChatSection({
               </div>
             </div>
 
-            <ScrollArea ref={scrollAreaRef} className="flex-1 scrollbar-custom">
+            <ScrollArea ref={scrollAreaRef} className="flex-1 scrollbar-custom overflow-y-auto">
               <div className="p-4 space-y-6 min-h-full">
                 {loading ? (
                   <div className="flex justify-center items-center h-full">
@@ -1027,7 +1036,7 @@ export function ChatSection({
               </div>
             )}
 
-            <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">
+            <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm sticky bottom-0">
               {selectedFile && (
                 <div className="mb-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600/50">
                   <div className="flex items-center justify-between">
@@ -1124,6 +1133,18 @@ export function ChatSection({
             alt="Full size image"
             className="max-w-full max-h-full object-contain"
           />
+        </Modal>
+      )}
+
+      {showRightSidebarModal && selectedChat && (
+        <Modal onClose={() => setShowRightSidebarModal(false)}>
+          <div className="w-full max-w-md mx-auto">
+            <RightSidebar
+              selectedChat={selectedChat}
+              collapsed={false}
+              onClose={() => setShowRightSidebarModal(false)}
+            />
+          </div>
         </Modal>
       )}
     </div>

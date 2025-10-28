@@ -30,6 +30,7 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
   const [debouncedQuery, setDebouncedQuery] = useState("")
   const containerRef = useRef<HTMLDivElement>(null)
   const [hasSubmitted, setHasSubmitted] = useState(false)
+  const [showMobileSearch, setShowMobileSearch] = useState(false)
 
   // Debounce the query
   useEffect(() => {
@@ -138,7 +139,7 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
         <div className="text-2xl font-bold text-white">Klyra</div>
       </div>
 
-      <div className="hidden md:flex flex-1 max-w-md mx-8">
+      <div className={cn("hidden md:flex flex-1 max-w-md mx-8", showMobileSearch && "md:hidden")}>
         <div className="relative w-full" ref={containerRef}>
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
           <Input
@@ -233,7 +234,105 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
 
 
       <div className="flex items-center space-x-2 lg:space-x-4">
-        <Button variant="ghost" size="icon" className="md:hidden text-slate-300 hover:text-white hover:bg-slate-700/50">
+        {showMobileSearch && (
+          <div className="md:hidden flex-1 max-w-md mr-4">
+            <div className="relative w-full" ref={containerRef}>
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
+              <Input
+                placeholder="Search users or chats..."
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  setIsOpen(true)
+                  setHasSubmitted(false)
+                }}
+                onFocus={() => query && setIsOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    setHasSubmitted(true)
+                    setIsOpen(true)
+                  }
+                }}
+                className="pl-10 pr-20 bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-300 hover:text-white hover:bg-slate-700/50"
+                onClick={() => {
+                  if (!query.trim()) return
+                  setHasSubmitted(true)
+                  setIsOpen(true)
+                }}
+              >
+                Search
+              </Button>
+              {(showDropdown || (isOpen && hasSubmitted && !isLoading)) && (
+                <div className="absolute left-0 right-0 mt-2 bg-slate-800/95 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-[70]">
+                  {isLoading ? (
+                    <div className="flex items-center justify-center py-6 text-slate-300">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <span>Searching…</span>
+                    </div>
+                  ) : users.length > 0 ? (
+                    <ul className="max-h-80 overflow-auto divide-y divide-slate-700">
+                      {users.map((u) => (
+                        <li key={u.id} className="p-3 hover:bg-slate-700/50 cursor-pointer" onClick={() => handleSelectUser(u)}>
+                          <div className="flex items-start space-x-3">
+                            <Avatar className="h-9 w-9 shrink-0">
+                              {u?.avatar ? (
+                                <AvatarImage src={u.avatar} alt={u.fullname || u.username} />
+                              ) : (
+                                <AvatarFallback className="bg-purple-600 text-white">
+                                  {(u.username || u.fullname || "U").charAt(0)}
+                                </AvatarFallback>
+                              )}
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm text-slate-200 truncate">
+                                {u.fullname ? (
+                                  <span>{highlightMatch(u.fullname, debouncedQuery)}</span>
+                                ) : (
+                                  <span>{highlightMatch(u.username, debouncedQuery)}</span>
+                                )}
+                              </div>
+                              {u.username && (
+                                <div className="text-xs text-slate-400 truncate">@{highlightMatch(u.username, debouncedQuery)}</div>
+                              )}
+                              {u.lastMessage && (
+                                <div className="flex items-center justify-between mt-1">
+                                  <div className="text-xs text-slate-400 truncate">
+                                    {highlightMatch(u.lastMessage?.content || "", debouncedQuery)}
+                                  </div>
+                                  <div className={cn("ml-2", u.lastMessage?.isRead ? "text-blue-400" : "text-slate-400")}>
+                                    <CheckCheck className="h-4 w-4" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : hasSubmitted && debouncedQuery ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-slate-300">
+                      <Image src="/icons/no_data.svg" alt="No results" width={112} height={112} className="opacity-80 mb-3" />
+                      <div className="text-sm">No results found for <span className="font-semibold text-white">"{query.trim()}"</span>.</div>
+                      <div className="text-xs text-slate-400 mt-1">Try a different name or username.</div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden text-slate-300 hover:text-white hover:bg-slate-700/50"
+          onClick={() => setShowMobileSearch(!showMobileSearch)}
+        >
           <Search className="h-5 w-5" />
         </Button>
         <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white hover:bg-slate-700/50">

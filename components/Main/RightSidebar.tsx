@@ -101,7 +101,7 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
           <img
             src={user?.avatar || "/placeholder.svg"}
             alt={user?.fullName || "User"}
-            className="w-full max-w-[70vw] max-h-[70vh] object-contain rounded-md"
+            className="w-full max-w-[40vw] max-h-[40vh] object-contain rounded-md"
           />
         </Modal>
       )}

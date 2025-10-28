@@ -14,7 +14,7 @@ export function MainDashboard() {
   const [activeTab, setActiveTab] = useState("chats");
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isRightCollapsed, setIsRightCollapsed] = useState(false);
+  const [isRightCollapsed, setIsRightCollapsed] = useState(true);
   const [selectedSetting, setSelectedSetting] = useState<string | null>("profile");
 
   // Safe client-only currentUser
