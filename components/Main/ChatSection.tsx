@@ -12,6 +12,7 @@ import { SettingsContent } from "./SettingsContent";
 import { IoCheckmarkDone } from "react-icons/io5";
 import { FaFile, FaFilePdf, FaFileWord, FaFileExcel } from "react-icons/fa";
 import Modal from "../ui/modalIMG";
+import { RightSidebar } from "./RightSidebar";
 
 interface ChatSectionProps {
   activeTab: string;
@@ -79,6 +80,7 @@ export function ChatSection({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showScrollDownButton, setShowScrollDownButton] = useState(false);
   const lastMessageRef = useRef<HTMLDivElement>(null);
+  const [showRightSidebarModal, setShowRightSidebarModal] = useState(false);
 
 
   useEffect(() => {
@@ -822,13 +824,6 @@ export function ChatSection({
           <>
             <div className="p-4 border-b border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">
               <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onToggleRightPanel?.();
-                  }}
-                  className="flex items-center space-x-3 group"
-                >
                   {isMobile && (
                     <Button
                       variant="ghost"
@@ -839,6 +834,17 @@ export function ChatSection({
                       <ArrowLeft className="h-5 w-5" />
                     </Button>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isMobile) {
+                        setShowRightSidebarModal(true);
+                      } else {
+                        onToggleRightPanel?.();
+                      }
+                    }}
+                    className="flex items-center space-x-3 group"
+                  >
                   <Avatar className="h-10 w-10">
                     <AvatarImage
                       src={selectedChatObj?.avatar || "/placeholder.svg"}
@@ -872,7 +878,7 @@ export function ChatSection({
               </div>
             </div>
 
-            <ScrollArea ref={scrollAreaRef} className="flex-1 scrollbar-custom overflow-y-auto">
+            <ScrollArea ref={scrollAreaRef} className={cn("flex-1 scrollbar-custom overflow-y-auto", isMobile ? "max-h-[calc(100vh-12rem)] overflow-y-auto" : "max-h-[calc(100vh-8rem)] overflow-y-auto")}>
               <div className="p-4 space-y-6 min-h-full">
                 {loading ? (
                   <div className="flex justify-center items-center h-full">
@@ -1030,7 +1036,7 @@ export function ChatSection({
               </div>
             )}
 
-            <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">
+            <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm sticky bottom-0 z-10">
               {selectedFile && (
                 <div className="mb-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600/50">
                   <div className="flex items-center justify-between">
@@ -1125,11 +1131,22 @@ export function ChatSection({
           <img
             src={modalImage}
             alt="Full size image"
-            className="max-w-full max-h-full object-contain"
+            className="max-w-[50rem] max-h-[40rem] object-contain"
           />
         </Modal>
       )}
 
+      {showRightSidebarModal && isMobile && (
+        <Modal onClose={() => setShowRightSidebarModal(false)}>
+          <div className="w-full max-w-md mx-auto">
+            <RightSidebar
+              selectedChat={selectedChat}
+              collapsed={false}
+              onClose={() => setShowRightSidebarModal(false)}
+            />
+          </div>
+        </Modal>
+      )}
 
     </div>
   );
