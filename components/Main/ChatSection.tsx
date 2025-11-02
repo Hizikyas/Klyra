@@ -41,6 +41,17 @@ interface ChatItem {
   lastMessageFromCurrentUser?: boolean;
 }
 
+interface ReplyTo {
+  id: string;
+  content?: string;
+  sender: {
+    username: string;
+  };
+  mediaUrl?: string;
+  mediaType?: string;
+  isDeleted?: boolean;
+}
+
 interface Message {
   id: string;
   sender: string;
@@ -52,6 +63,9 @@ interface Message {
   status?: 'sending' | 'sent' | 'read';
   mediaUrl?: string;
   mediaType?: string;
+  isEdited?: boolean;
+  isDeleted?: boolean;
+  replyTo?: ReplyTo;
 }
 
 export function ChatSection({
@@ -81,6 +95,12 @@ export function ChatSection({
   const [showScrollDownButton, setShowScrollDownButton] = useState(false);
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const [showRightSidebarModal, setShowRightSidebarModal] = useState(false);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteForEveryone, setDeleteForEveryone] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -373,6 +393,16 @@ export function ChatSection({
             isOwn: m.senderId === currentUser?.id,
             isRead: m.isRead,
             status: m.senderId === currentUser.id ? (m.isRead ? 'read' as const : 'sent' as const) : undefined,
+            isEdited: m.isEdited,
+            isDeleted: m.isDeleted,
+            replyTo: m.replyTo ? {
+              id: m.replyTo.id,
+              content: m.replyTo.content,
+              sender: { username: m.replyTo.sender?.username || 'User' },
+              mediaUrl: m.replyTo.mediaUrl,
+              mediaType: m.replyTo.mediaType,
+              isDeleted: m.replyTo.isDeleted,
+            } : undefined,
           }));
 
           setMessagesCache((prev) => ({ ...prev, [selectedChat]: mapped }));
@@ -448,6 +478,16 @@ export function ChatSection({
         isOwn: newMessage.senderId === currentUser?.id,
         isRead: newMessage.isRead,
         status: newMessage.senderId === currentUser.id ? (newMessage.isRead ? 'read' as const : 'sent' as const) : undefined,
+        isEdited: newMessage.isEdited,
+        isDeleted: newMessage.isDeleted,
+        replyTo: newMessage.replyTo ? {
+          id: newMessage.replyTo.id,
+          content: newMessage.replyTo.content,
+          sender: { username: newMessage.replyTo.sender?.username || 'User' },
+          mediaUrl: newMessage.replyTo.mediaUrl,
+          mediaType: newMessage.replyTo.mediaType,
+          isDeleted: newMessage.replyTo.isDeleted,
+        } : undefined,
       };
 
       setMessages((prev) => [...prev, newMessageObj]);
@@ -475,12 +515,28 @@ export function ChatSection({
 
     const handleMessageUpdated = (updatedMessage: any) => {
       setMessages((prev) =>
-        prev.map((msg: Message) => (msg.id === updatedMessage.id ? { ...msg, content: updatedMessage.content || msg.content } : msg))
+        prev.map((msg: Message) => (msg.id === updatedMessage.id ? { ...msg, content: updatedMessage.content || msg.content, isEdited: updatedMessage.isEdited } : msg))
       );
+      setMessagesCache((prev) => ({
+        ...prev,
+        [selectedChat]: (prev[selectedChat] || []).map((msg: Message) => (msg.id === updatedMessage.id ? { ...msg, content: updatedMessage.content || msg.content, isEdited: updatedMessage.isEdited } : msg))
+      }));
     };
 
-    const handleMessageDeleted = (messageId: string) => {
-      setMessages((prev) => prev.filter((msg: Message) => msg.id !== messageId));
+    const handleMessageDeleted = ({ messageId, deleteForEveryone }: { messageId: string, deleteForEveryone: boolean }) => {
+      setMessages((prev) => {
+        if (deleteForEveryone) {
+          return prev.map((msg) => msg.id === messageId ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg);
+        } else {
+          return prev.filter((msg) => msg.id !== messageId);
+        }
+      });
+      setMessagesCache((prev) => ({
+        ...prev,
+        [selectedChat]: deleteForEveryone 
+          ? (prev[selectedChat] || []).map((msg) => msg.id === messageId ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg)
+          : (prev[selectedChat] || []).filter((msg) => msg.id !== messageId)
+      }));
     };
 
     const handleMessageRead = (data: { messageId: string; isRead: boolean }) => {
@@ -641,59 +697,164 @@ export function ChatSection({
 
     try {
       const formData = new FormData();
-      formData.append('content', message.trim());
-      formData.append('recipientId', selectedChat);
-      if (selectedFile) {
-        formData.append('media', selectedFile);
-      }
+      if (!editingMessage) {
+        formData.append('content', message.trim());
+        formData.append('recipientId', selectedChat);
+        if (replyingTo) {
+          formData.append('replyToId', replyingTo.id);
+        }
+        if (selectedFile) {
+          formData.append('media', selectedFile);
+        }
 
-      const res = await fetch('http://localhost:4000/v1/messages', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (data?.message) {
-        const m = data.message;
-        const newMessageObj: Message = {
-          id: m.id,
-          sender: 'You',
-          content: m.content || '',
-          mediaUrl: m.mediaUrl || undefined,
-          mediaType: m.mediaType || undefined,
-          timestamp: formatTimestamp(m.createdAt),
-          createdAt: m.createdAt,
-          isOwn: true,
-          isRead: false,
-          status: 'sent' as const,
-        };
-
-        setMessages((prev) => [...prev, newMessageObj]);
-        setMessagesCache((prev) => ({
-          ...prev,
-          [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
-        }));
-        setMessage('');
-        setSelectedFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-
-        upsertChatPreview(selectedChat, {
-          name: selectedChatObj?.name,
-          avatar: selectedChatObj?.avatar,
-          lastMessage: m.content || (m.mediaUrl ? (m.mediaType?.startsWith('image/') ? 'Image' : 'File') : 'Media'),
-          timestamp: formatTimestamp(m.createdAt),
-          resetUnread: true,
-          isFromCurrentUser: true,
-          messageStatus: 'sent',
+        const res = await fetch('http://localhost:4000/v1/messages', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
         });
+
+        const data = await res.json();
+        if (data?.message) {
+          const m = data.message;
+          const newMessageObj: Message = {
+            id: m.id,
+            sender: 'You',
+            content: m.content || '',
+            mediaUrl: m.mediaUrl || undefined,
+            mediaType: m.mediaType || undefined,
+            timestamp: formatTimestamp(m.createdAt),
+            createdAt: m.createdAt,
+            isOwn: true,
+            isRead: false,
+            status: 'sent' as const,
+            isEdited: m.isEdited,
+            isDeleted: m.isDeleted,
+            replyTo: m.replyTo ? {
+              id: m.replyTo.id,
+              content: m.replyTo.content,
+              sender: { username: m.replyTo.sender?.username || 'User' },
+              mediaUrl: m.replyTo.mediaUrl,
+              mediaType: m.replyTo.mediaType,
+              isDeleted: m.replyTo.isDeleted,
+            } : undefined,
+          };
+
+          setMessages((prev) => [...prev, newMessageObj]);
+          setMessagesCache((prev) => ({
+            ...prev,
+            [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
+          }));
+          setMessage('');
+          setSelectedFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+          setReplyingTo(null);
+
+          upsertChatPreview(selectedChat, {
+            name: selectedChatObj?.name,
+            avatar: selectedChatObj?.avatar,
+            lastMessage: m.content || (m.mediaUrl ? (m.mediaType?.startsWith('image/') ? 'Image' : 'File') : 'Media'),
+            timestamp: formatTimestamp(m.createdAt),
+            resetUnread: true,
+            isFromCurrentUser: true,
+            messageStatus: 'sent',
+          });
+        }
+      } else {
+        const res = await fetch(`http://localhost:4000/v1/messages/${editingMessage.id}`, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content: message.trim() }),
+        });
+
+        const data = await res.json();
+        if (data?.message) {
+          const updated = data.message;
+          setMessages((prev) =>
+            prev.map((msg) => (msg.id === updated.id ? { ...msg, content: updated.content, isEdited: true } : msg))
+          );
+          setMessagesCache((prev) => ({
+            ...prev,
+            [selectedChat]: (prev[selectedChat] || []).map((msg) => (msg.id === updated.id ? { ...msg, content: updated.content, isEdited: true } : msg))
+          }));
+          setMessage('');
+          setEditingMessage(null);
+        }
       }
     } catch (e) {
-      console.error('Failed to send message', e);
+      console.error('Failed to send/update message', e);
     }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedMessage || !selectedChat) return;
+
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
+    if (!token) return;
+
+    try {
+      const res = await fetch(`http://localhost:4000/v1/messages/${selectedMessage.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ deleteForEveryone }),
+      });
+
+      if (res.ok) {
+        if (deleteForEveryone) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === selectedMessage.id ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg
+            )
+          );
+          setMessagesCache((prev) => ({
+            ...prev,
+            [selectedChat]: (prev[selectedChat] || []).map((msg) =>
+              msg.id === selectedMessage.id ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg
+            )
+          }));
+        } else {
+          setMessages((prev) => prev.filter((msg) => msg.id !== selectedMessage.id));
+          setMessagesCache((prev) => ({
+            ...prev,
+            [selectedChat]: (prev[selectedChat] || []).filter((msg) => msg.id !== selectedMessage.id)
+          }));
+        }
+        setShowDeleteConfirm(false);
+        setSelectedMessage(null);
+        setDeleteForEveryone(false);
+      }
+    } catch (e) {
+      console.error('Failed to delete message', e);
+    }
+  };
+
+  const handleReply = () => {
+    if (selectedMessage) {
+      setReplyingTo(selectedMessage);
+      setSelectedMessage(null);
+    }
+  };
+
+  const handleEdit = () => {
+    if (selectedMessage) {
+      setEditingMessage(selectedMessage);
+      setMessage(selectedMessage.content);
+      setSelectedMessage(null);
+    }
+  };
+
+  const handleDelete = () => {
+    setShowDeleteConfirm(true);
   };
 
   const handleBackToList = () => {
@@ -914,6 +1075,25 @@ export function ChatSection({
                             className={cn("flex items-end gap-2", msg.isOwn ? "justify-end" : "justify-start", "my-2")}
                             data-message-id={msg.id}
                             data-is-own={msg.isOwn.toString()}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              setSelectedMessage(msg);
+                            }}
+                            onTouchStart={() => {
+                              longPressTimer.current = setTimeout(() => {
+                                setSelectedMessage(msg);
+                              }, 500);
+                            }}
+                            onTouchEnd={() => {
+                              if (longPressTimer.current) {
+                                clearTimeout(longPressTimer.current);
+                              }
+                            }}
+                            onTouchMove={() => {
+                              if (longPressTimer.current) {
+                                clearTimeout(longPressTimer.current);
+                              }
+                            }}
                           >
                             {/* Avatar for friend messages only */}
                             {!msg.isOwn && (
@@ -941,96 +1121,111 @@ export function ChatSection({
                                 msg.mediaType?.startsWith('image/') ? "w-full" : "px-4 py-2"
                               )}
                             >
-                              {/* IMAGE CASE - full-bleed image with overlayed timestamp/check */}
-                              {msg.mediaUrl && msg.mediaType?.startsWith('image/') ? (
-                                <div className="mb-0 w-full">
-                                  <div
-                                    className={cn(
-                                      "relative w-full overflow-hidden",
-                                      // Remove rounding from image containers too
-                                      msg.isOwn ? "rounded-tl-md rounded-bl-md rounded-tr-md rounded-br-none" : "rounded-tr-md rounded-br-md rounded-tl-md rounded-bl-none",
-                                      // subtle border/ring depending on sender
-                                      msg.isOwn ? "ring-2 ring-purple-500/40" : "ring-1 ring-slate-600/30"
-                                    )}
-                                  >
-                                    <img
-                                      src={msg.mediaUrl || ''}
-                                      alt="Sent image"
-                                      // make image fill the container; adjust h-64 to taste or use max-h
-                                      className="w-full h-64 object-cover block"
-                                      onClick={() => msg.mediaUrl && handleImageClick(msg.mediaUrl)}
-                                    />
-                                    {/* overlay: timestamp + check; sits above image */}
-                                    <div className="absolute bottom-2 right-2 z-20 flex items-center gap-2 bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm">
-                                      <p className={cn("text-[0.7rem] text-white")}>{msg.timestamp}</p>
-                                      {msg.isOwn && (
-                                        <div className="ml-0">
-                                          {msg.status === 'read' ? (
-                                            <IoCheckmarkDone className="w-5 h-4 text-blue-300" />
-                                          ) : (
-                                            <Check className="w-5 h-4 text-purple-200" />
+                              {msg.replyTo && (
+                                <div className="border-l-4 border-purple-500 pl-2 mb-2 bg-slate-700/20 p-2 rounded text-xs text-slate-300">
+                                  <p className="font-medium text-slate-200">{msg.replyTo.sender.username}</p>
+                                  <p className="truncate">
+                                    {msg.replyTo.isDeleted ? "This message was deleted" : msg.replyTo.content || (msg.replyTo.mediaType?.startsWith('image/') ? "Image" : "File")}
+                                  </p>
+                                </div>
+                              )}
+                              {msg.isDeleted ? (
+                                <p className="text-sm text-slate-400 italic">This message was deleted</p>
+                              ) : (
+                                <>
+                                  {/* IMAGE CASE - full-bleed image with overlayed timestamp/check */}
+                                  {msg.mediaUrl && msg.mediaType?.startsWith('image/') ? (
+                                    <div className="mb-0 w-full">
+                                      <div
+                                        className={cn(
+                                          "relative w-full overflow-hidden",
+                                          // Remove rounding from image containers too
+                                          msg.isOwn ? "rounded-tl-md rounded-bl-md rounded-tr-md rounded-br-none" : "rounded-tr-md rounded-br-md rounded-tl-md rounded-bl-none",
+                                          // subtle border/ring depending on sender
+                                          msg.isOwn ? "ring-2 ring-purple-500/40" : "ring-1 ring-slate-600/30"
+                                        )}
+                                      >
+                                        <img
+                                          src={msg.mediaUrl || ''}
+                                          alt="Sent image"
+                                          // make image fill the container; adjust h-64 to taste or use max-h
+                                          className="w-full h-64 object-cover block"
+                                          onClick={() => msg.mediaUrl && handleImageClick(msg.mediaUrl)}
+                                        />
+                                        {/* overlay: timestamp + check; sits above image */}
+                                        <div className="absolute bottom-2 right-2 z-20 flex items-center gap-2 bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm">
+                                          <p className={cn("text-[0.7rem] text-white")}>{msg.timestamp}</p>
+                                          {msg.isOwn && (
+                                            <div className="ml-0">
+                                              {msg.status === 'read' ? (
+                                                <IoCheckmarkDone className="w-5 h-4 text-blue-300" />
+                                              ) : (
+                                                <Check className="w-5 h-4 text-purple-200" />
+                                              )}
+                                            </div>
                                           )}
                                         </div>
-                                      )}
+                                      </div>
+                                      {/* optional caption/content under image */}
+                                      {msg.content && <p className="text-sm mt-2 px-0">{msg.content}</p>}
                                     </div>
-                                  </div>
-                                  {/* optional caption/content under image */}
-                                  {msg.content && <p className="text-sm mt-2 px-0">{msg.content}</p>}
-                                </div>
-                              ) : (
-                                /* NON-IMAGE CASE - keep previous layout but with square corners */
-                                <>
-                                  {msg.mediaUrl && (
-                                    <div className="mb-2">
-                                      <div className="pr-3 bg-slate-700/30 rounded-lg border border-slate-600/50 max-w-xs">
-                                        <div className="flex items-center space-x-3">
-                                          <div
-                                            className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center cursor-pointer"
-                                            onClick={() => msg.mediaUrl && window.open(msg.mediaUrl, '_blank')}
-                                          >
-                                            {getFileIcon(msg.mediaType || '')}
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <p className="text-sm text-white font-medium truncate">
-                                              {!msg.mediaType?.startsWith('image/') &&
-                                                (() => {
-                                                  const fileName = msg.mediaUrl?.split('/').pop() || 'File';
-                                                  try {
-                                                    return decodeURIComponent(fileName);
-                                                  } catch {
-                                                    return fileName;
-                                                  }
-                                                })()}
-                                            </p>
-                                            <p className="text-xs text-slate-400">
-                                              {!msg.mediaType?.startsWith('image/') && 'Click to download'}
-                                            </p>
+                                  ) : (
+                                    /* NON-IMAGE CASE - keep previous layout but with square corners */
+                                    <>
+                                      {msg.mediaUrl && (
+                                        <div className="mb-2">
+                                          <div className="pr-3 bg-slate-700/30 rounded-lg border border-slate-600/50 max-w-xs">
+                                            <div className="flex items-center space-x-3">
+                                              <div
+                                                className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center cursor-pointer"
+                                                onClick={() => msg.mediaUrl && window.open(msg.mediaUrl, '_blank')}
+                                              >
+                                                {getFileIcon(msg.mediaType || '')}
+                                              </div>
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-sm text-white font-medium truncate">
+                                                  {!msg.mediaType?.startsWith('image/') &&
+                                                    (() => {
+                                                      const fileName = msg.mediaUrl?.split('/').pop() || 'File';
+                                                      try {
+                                                        return decodeURIComponent(fileName);
+                                                      } catch {
+                                                        return fileName;
+                                                      }
+                                                    })()}
+                                                </p>
+                                                <p className="text-xs text-slate-400">
+                                                  {!msg.mediaType?.startsWith('image/') && 'Click to download'}
+                                                </p>
+                                              </div>
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                  {msg.content && <p className="text-sm">{msg.content}</p>}
-                                  {/* timestamp/check for non-image messages */}
-                                  <div className="flex items-center justify-end mt-1">
-                                    <p
-                                      className={cn(
-                                        "text-[0.7rem]",
-                                        msg.isOwn ? "text-purple-200" : "text-slate-400"
                                       )}
-                                    >
-                                      {msg.timestamp}
-                                    </p>
-                                    {msg.isOwn && (
-                                      <div className="ml-1">
-                                        {msg.status === 'read' ? (
-                                          <IoCheckmarkDone className="w-6 h-5 text-blue-400" />
-                                        ) : (
-                                          <Check className="w-6 h-4 text-purple-200" />
+                                      {msg.content && <p className="text-sm">{msg.content}</p>}
+                                      {/* timestamp/check for non-image messages */}
+                                      <div className="flex items-center justify-end mt-1 space-x-1">
+                                        {msg.isEdited && <p className="text-[0.65rem] text-slate-400">(edited)</p>}
+                                        <p
+                                          className={cn(
+                                            "text-[0.7rem]",
+                                            msg.isOwn ? "text-purple-200" : "text-slate-400"
+                                          )}
+                                        >
+                                          {msg.timestamp}
+                                        </p>
+                                        {msg.isOwn && (
+                                          <div className="ml-1">
+                                            {msg.status === 'read' ? (
+                                              <IoCheckmarkDone className="w-6 h-5 text-blue-400" />
+                                            ) : (
+                                              <Check className="w-6 h-4 text-purple-200" />
+                                            )}
+                                          </div>
                                         )}
                                       </div>
-                                    )}
-                                  </div>
+                                    </>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -1059,78 +1254,140 @@ export function ChatSection({
             )}
 
             <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm sticky bottom-0 z-10">
-              {selectedFile && (
-                <div className="mb-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600/50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {selectedFile.type.startsWith('image/') ? (
-                        <img
-                          src={URL.createObjectURL(selectedFile)}
-                          alt="Preview"
-                          className="w-12 h-12 object-cover rounded-lg"
+              {showDeleteConfirm && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50">
+                  <div className="bg-slate-800 p-4 rounded-lg">
+                    <h3 className="text-white mb-2">Delete message?</h3>
+                    {selectedMessage?.isOwn && (
+                      <label className="flex items-center text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={deleteForEveryone}
+                          onChange={(e) => setDeleteForEveryone(e.target.checked)}
+                          className="mr-2"
                         />
-                      ) : (
-                        <div className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center">
-                          {getFileIcon(selectedFile.type || '')}
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-sm text-white font-medium">{selectedFile.name}</p>
-                        <p className="text-xs text-slate-400">
-                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </div>
+                        Delete for {selectedChatObj?.name} too
+                      </label>
+                    )}
+                    <div className="flex justify-end mt-4 space-x-2">
+                      <Button variant="ghost" onClick={() => { setShowDeleteConfirm(false); setDeleteForEveryone(false); }}>
+                        Cancel
+                      </Button>
+                      <Button variant="destructive" onClick={handleDeleteConfirm}>
+                        Delete
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setSelectedFile(null);
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                      className="text-slate-400 hover:text-white hover:bg-slate-700/50"
-                    >
-                      ✕
-                    </Button>
                   </div>
                 </div>
               )}
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-slate-400 hover:text-white hover:bg-slate-700/50"
-                  onClick={handlePaperclipClick}
-                >
-                  <Paperclip className="h-5 w-5" />
-                </Button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  className="hidden"
-                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
-                />
-                <div className="flex-1 relative">
-                  <Input
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Type a message..."
-                    className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400 pr-12"
-                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
-                  >
-                    <Smile className="h-4 w-4" />
-                  </Button>
+              {selectedMessage ? (
+                <div className="flex justify-center space-x-4 p-2 bg-slate-800 rounded-lg">
+                  <Button onClick={handleReply}>Reply</Button>
+                  {selectedMessage.isOwn && !selectedMessage.isDeleted && (
+                    <Button onClick={handleEdit}>Edit</Button>
+                  )}
+                  {selectedMessage.isOwn && !selectedMessage.isDeleted && (
+                    <Button onClick={handleDelete}>Delete</Button>
+                  )}
+                  <Button onClick={() => setSelectedMessage(null)}>Cancel</Button>
                 </div>
-                <Button onClick={handleSendMessage} className="bg-purple-600 hover:bg-purple-700 text-white">
-                  <Send className="h-4 w-4" />
-                </Button>
-              </div>
+              ) : (
+                <>
+                  {(replyingTo || editingMessage) && (
+                    <div className="mb-2 p-2 bg-slate-700/30 rounded-lg flex justify-between items-center">
+                      <div>
+                        <p className="text-sm text-purple-400">{replyingTo ? 'Replying to' : 'Editing'}:</p>
+                        <p className="text-xs text-slate-300 truncate max-w-xs">
+                          {replyingTo?.content || editingMessage?.content || 'Message'}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setReplyingTo(null);
+                          setEditingMessage(null);
+                          setMessage('');
+                        }}
+                      >
+                        ✕
+                      </Button>
+                    </div>
+                  )}
+                  {selectedFile && (
+                    <div className="mb-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600/50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          {selectedFile.type.startsWith('image/') ? (
+                            <img
+                              src={URL.createObjectURL(selectedFile)}
+                              alt="Preview"
+                              className="w-12 h-12 object-cover rounded-lg"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center">
+                              {getFileIcon(selectedFile.type || '')}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm text-white font-medium">{selectedFile.name}</p>
+                            <p className="text-xs text-slate-400">
+                              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setSelectedFile(null);
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                          }}
+                          className="text-slate-400 hover:text-white hover:bg-slate-700/50"
+                        >
+                          ✕
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-slate-400 hover:text-white hover:bg-slate-700/50"
+                      onClick={handlePaperclipClick}
+                    >
+                      <Paperclip className="h-5 w-5" />
+                    </Button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      className="hidden"
+                      accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                    />
+                    <div className="flex-1 relative">
+                      <Input
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        placeholder="Type a message..."
+                        className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400 pr-12"
+                        onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
+                      >
+                        <Smile className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Button onClick={handleSendMessage} className="bg-purple-600 hover:bg-purple-700 text-white">
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </>
         ) : (
