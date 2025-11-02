@@ -82,7 +82,6 @@ export function ChatSection({
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const [showRightSidebarModal, setShowRightSidebarModal] = useState(false);
 
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -912,16 +911,34 @@ export function ChatSection({
                         {group.messages.map((msg) => (
                           <div
                             key={msg.id}
-                            className={cn("flex", msg.isOwn ? "justify-end" : "justify-start", "my-2")}
+                            className={cn("flex items-end gap-2", msg.isOwn ? "justify-end" : "justify-start", "my-2")}
                             data-message-id={msg.id}
                             data-is-own={msg.isOwn.toString()}
                           >
+                            {/* Avatar for friend messages only */}
+                            {!msg.isOwn && (
+                              <div className="flex-shrink-0">
+                                <Avatar className="h-6 w-6 rounded-full mb-0">
+                                  <AvatarImage
+                                    src={selectedChatObj?.avatar || "/placeholder.svg"}
+                                    alt={selectedChatObj?.name || "Friend"}
+                                  />
+                                  <AvatarFallback className="bg-purple-600 text-white text-xs">
+                                    {(selectedChatObj?.name || "F").charAt(0)}
+                                  </AvatarFallback>
+                                </Avatar>
+                              </div>
+                            )}
+                            
                             <div
                               className={cn(
-                                "max-w-xs lg:max-w-md rounded-2xl flex flex-col",
+                                "max-w-xs lg:max-w-md flex flex-col",
+                                // Remove rounding from corners and apply different styles based on ownership
+                                msg.isOwn 
+                                  ? "bg-purple-600 text-white rounded-tl-md rounded-bl-md rounded-tr-[1rem] rounded-br-none" 
+                                  : "bg-slate-700 text-white rounded-tr-md rounded-br-md rounded-tl-[1rem] rounded-bl-none",
                                 // remove inner padding for images, keep it for other messages
-                                msg.mediaType?.startsWith('image/') ? "w-full" : "px-4 py-2",
-                                msg.isOwn ? "bg-purple-600 text-white" : "bg-slate-700 text-white"
+                                msg.mediaType?.startsWith('image/') ? "w-full" : "px-4 py-2"
                               )}
                             >
                               {/* IMAGE CASE - full-bleed image with overlayed timestamp/check */}
@@ -929,7 +946,9 @@ export function ChatSection({
                                 <div className="mb-0 w-full">
                                   <div
                                     className={cn(
-                                      "relative w-full overflow-hidden rounded-2xl",
+                                      "relative w-full overflow-hidden",
+                                      // Remove rounding from image containers too
+                                      msg.isOwn ? "rounded-tl-md rounded-bl-md rounded-tr-md rounded-br-none" : "rounded-tr-md rounded-br-md rounded-tl-md rounded-bl-none",
                                       // subtle border/ring depending on sender
                                       msg.isOwn ? "ring-2 ring-purple-500/40" : "ring-1 ring-slate-600/30"
                                     )}
@@ -959,7 +978,7 @@ export function ChatSection({
                                   {msg.content && <p className="text-sm mt-2 px-0">{msg.content}</p>}
                                 </div>
                               ) : (
-                                /* NON-IMAGE CASE - keep previous layout */
+                                /* NON-IMAGE CASE - keep previous layout but with square corners */
                                 <>
                                   {msg.mediaUrl && (
                                     <div className="mb-2">
@@ -1015,6 +1034,9 @@ export function ChatSection({
                                 </>
                               )}
                             </div>
+                            
+                            {/* Empty space on the right for friend messages to balance alignment */}
+                            {!msg.isOwn && <div className="w-8 flex-shrink-0"></div>}
                           </div>
                         ))}
                     </div>
