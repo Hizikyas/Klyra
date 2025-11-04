@@ -101,6 +101,9 @@ export function ChatSection({
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteForEveryone, setDeleteForEveryone] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [touchStartPos, setTouchStartPos] = useState<{ x: number; y: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -832,6 +835,7 @@ export function ChatSection({
         setShowDeleteConfirm(false);
         setSelectedMessage(null);
         setDeleteForEveryone(false);
+        setMenuPosition(null);
       }
     } catch (e) {
       console.error('Failed to delete message', e);
@@ -842,6 +846,7 @@ export function ChatSection({
     if (selectedMessage) {
       setReplyingTo(selectedMessage);
       setSelectedMessage(null);
+      setMenuPosition(null);
     }
   };
 
@@ -850,11 +855,13 @@ export function ChatSection({
       setEditingMessage(selectedMessage);
       setMessage(selectedMessage.content);
       setSelectedMessage(null);
+      setMenuPosition(null);
     }
   };
 
   const handleDelete = () => {
     setShowDeleteConfirm(true);
+    setMenuPosition(null);
   };
 
   const handleBackToList = () => {
@@ -862,6 +869,41 @@ export function ChatSection({
     setMessages([]);
     onChatSelect("");
   };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node) && selectedMessage && !showDeleteConfirm) {
+        setSelectedMessage(null);
+        setMenuPosition(null);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [selectedMessage, showDeleteConfirm]);
+
+  useEffect(() => {
+    if (menuPosition && menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      let newX = menuPosition.x;
+      let newY = menuPosition.y;
+
+      if (newX + rect.width > window.innerWidth) {
+        newX = window.innerWidth - rect.width - 10;
+      }
+      if (newY + rect.height > window.innerHeight) {
+        newY = window.innerHeight - rect.height - 10;
+      }
+      if (newX < 0) newX = 10;
+      if (newY < 0) newY = 10;
+
+      if (newX !== menuPosition.x || newY !== menuPosition.y) {
+        setMenuPosition({ x: newX, y: newY });
+      }
+    }
+  }, [menuPosition]);
 
   if (activeTab === "settings") {
     return (
@@ -1078,10 +1120,13 @@ export function ChatSection({
                             onContextMenu={(e) => {
                               e.preventDefault();
                               setSelectedMessage(msg);
+                              setMenuPosition({ x: e.clientX, y: e.clientY });
                             }}
-                            onTouchStart={() => {
+                            onTouchStart={(e) => {
+                              setTouchStartPos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
                               longPressTimer.current = setTimeout(() => {
                                 setSelectedMessage(msg);
+                                setMenuPosition(touchStartPos);
                               }, 500);
                             }}
                             onTouchEnd={() => {
@@ -1205,7 +1250,7 @@ export function ChatSection({
                                       {msg.content && <p className="text-sm">{msg.content}</p>}
                                       {/* timestamp/check for non-image messages */}
                                       <div className="flex items-center justify-end mt-1 space-x-1">
-                                        {msg.isEdited && <p className="text-[0.65rem] text-slate-400">(edited)</p>}
+                                        {msg.isEdited && <p className="text-[0.6rem] text-slate-400">edited</p>}
                                         <p
                                           className={cn(
                                             "text-[0.7rem]",
@@ -1253,7 +1298,7 @@ export function ChatSection({
               </div>
             )}
 
-            <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm sticky bottom-0 z-10">
+            <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm sticky bottom-0 z-10 relative">
               {showDeleteConfirm && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50">
                   <div className="bg-slate-800 p-4 rounded-lg">
@@ -1280,114 +1325,118 @@ export function ChatSection({
                   </div>
                 </div>
               )}
-              {selectedMessage ? (
-                <div className="flex justify-center space-x-4 p-2 bg-slate-800 rounded-lg">
-                  <Button onClick={handleReply}>Reply</Button>
+              {selectedMessage && menuPosition && !showDeleteConfirm && (
+                <div
+                  ref={menuRef}
+                  className="absolute z-50 bg-slate-800 rounded-lg shadow-lg flex flex-col p-2"
+                  style={{ left: `${menuPosition.x}px`, top: `${menuPosition.y}px` }}
+                >
+                  <Button variant="ghost" className="justify-start" onClick={handleReply}>Reply</Button>
                   {selectedMessage.isOwn && !selectedMessage.isDeleted && (
-                    <Button onClick={handleEdit}>Edit</Button>
+                    <Button variant="ghost" className="justify-start" onClick={handleEdit}>Edit</Button>
                   )}
-                  {selectedMessage.isOwn && !selectedMessage.isDeleted && (
-                    <Button onClick={handleDelete}>Delete</Button>
-                  )}
-                  <Button onClick={() => setSelectedMessage(null)}>Cancel</Button>
+                  <Button variant="ghost" className="justify-start" onClick={handleDelete}>Delete</Button>
+                  <Button variant="ghost" className="justify-start" onClick={() => {
+                    setSelectedMessage(null);
+                    setMenuPosition(null);
+                  }}>Cancel</Button>
                 </div>
-              ) : (
-                <>
-                  {(replyingTo || editingMessage) && (
-                    <div className="mb-2 p-2 bg-slate-700/30 rounded-lg flex justify-between items-center">
-                      <div>
-                        <p className="text-sm text-purple-400">{replyingTo ? 'Replying to' : 'Editing'}:</p>
-                        <p className="text-xs text-slate-300 truncate max-w-xs">
-                          {replyingTo?.content || editingMessage?.content || 'Message'}
-                        </p>
+              )}
+              <>
+                {(replyingTo || editingMessage) && (
+                  <div className="mb-2 p-2 bg-slate-700/30 rounded-lg flex justify-between items-center">
+                    <div>
+                      <p className="text-sm text-purple-400">{replyingTo ? 'Replying to' : 'Editing'}:</p>
+                      <p className="text-xs text-slate-300 truncate max-w-xs">
+                        {replyingTo?.content || editingMessage?.content || 'Message'}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setReplyingTo(null);
+                        setEditingMessage(null);
+                        setMessage('');
+                      }}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                )}
+                {selectedFile && (
+                  <div className="mb-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600/50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        {selectedFile.type.startsWith('image/') ? (
+                          <img
+                            src={URL.createObjectURL(selectedFile)}
+                            alt="Preview"
+                            className="w-12 h-12 object-cover rounded-lg"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center">
+                            {getFileIcon(selectedFile.type || '')}
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-sm text-white font-medium">{selectedFile.name}</p>
+                          <p className="text-xs text-slate-400">
+                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
                         onClick={() => {
-                          setReplyingTo(null);
-                          setEditingMessage(null);
-                          setMessage('');
+                          setSelectedFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
+                        className="text-slate-400 hover:text-white hover:bg-slate-700/50"
                       >
                         ✕
                       </Button>
                     </div>
-                  )}
-                  {selectedFile && (
-                    <div className="mb-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600/50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          {selectedFile.type.startsWith('image/') ? (
-                            <img
-                              src={URL.createObjectURL(selectedFile)}
-                              alt="Preview"
-                              className="w-12 h-12 object-cover rounded-lg"
-                            />
-                          ) : (
-                            <div className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center">
-                              {getFileIcon(selectedFile.type || '')}
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-sm text-white font-medium">{selectedFile.name}</p>
-                            <p className="text-xs text-slate-400">
-                              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setSelectedFile(null);
-                            if (fileInputRef.current) fileInputRef.current.value = '';
-                          }}
-                          className="text-slate-400 hover:text-white hover:bg-slate-700/50"
-                        >
-                          ✕
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex items-center space-x-2">
+                  </div>
+                )}
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-slate-400 hover:text-white hover:bg-slate-700/50"
+                    onClick={handlePaperclipClick}
+                  >
+                    <Paperclip className="h-5 w-5" />
+                  </Button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                  />
+                  <div className="flex-1 relative">
+                    <Input
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      placeholder="Type a message..."
+                      className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400 pr-12"
+                      onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                    />
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-slate-400 hover:text-white hover:bg-slate-700/50"
-                      onClick={handlePaperclipClick}
+                      className="absolute right-1 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
                     >
-                      <Paperclip className="h-5 w-5" />
-                    </Button>
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      className="hidden"
-                      accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
-                    />
-                    <div className="flex-1 relative">
-                      <Input
-                        value={message}
-                        onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Type a message..."
-                        className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400 pr-12"
-                        onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-1 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
-                      >
-                        <Smile className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <Button onClick={handleSendMessage} className="bg-purple-600 hover:bg-purple-700 text-white">
-                      <Send className="h-4 w-4" />
+                      <Smile className="h-4 w-4" />
                     </Button>
                   </div>
-                </>
-              )}
+                  <Button onClick={handleSendMessage} className="bg-purple-600 hover:bg-purple-700 text-white">
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </>
             </div>
           </>
         ) : (
