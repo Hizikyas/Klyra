@@ -1,7 +1,21 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Send, Paperclip, Smile, Video, Phone, MessageCircle, ArrowLeft, Loader2, Check, CheckCheck, ChevronDown } from "lucide-react";
+import {
+  Send,
+  Paperclip,
+  Smile,
+  Video,
+  Phone,
+  ArrowLeft,
+  Loader2,
+  Check,
+  CheckCheck,
+  ChevronDown,
+  Reply,
+  Edit,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -96,13 +110,18 @@ export function ChatSection({
   const lastMessageRef = useRef<HTMLDivElement>(null);
   const [showRightSidebarModal, setShowRightSidebarModal] = useState(false);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteForEveryone, setDeleteForEveryone] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const [touchStartPos, setTouchStartPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Context Menu State
+  const [contextMenu, setContextMenu] = useState<{
+    message: Message | null;
+    x: number;
+    y: number;
+    visible: boolean;
+  }>({ message: null, x: 0, y: 0, visible: false });
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -115,12 +134,9 @@ export function ChatSection({
     }
   }, []);
 
-  // Helper to format timestamp consistently
   const formatTimestamp = (dateStr?: string | Date, includeDate: boolean = false): string => {
     let dateInput = dateStr;
-    if (!dateInput) {
-      dateInput = new Date();
-    }
+    if (!dateInput) dateInput = new Date();
     let dateString = typeof dateInput === 'string' ? dateInput : dateInput.toISOString();
     if (!dateString.endsWith('Z') && !/[\+\-]\d{2}:\d{2}$/.test(dateString)) {
       dateString += 'Z';
@@ -142,7 +158,6 @@ export function ChatSection({
     });
   };
 
-  // Group messages by date
   const groupMessagesByDate = (messages: Message[]) => {
     const grouped: { date: string; messages: Message[] }[] = [];
     let currentDate = '';
@@ -292,15 +307,6 @@ export function ChatSection({
         }
       } catch (e) {
         console.error('Failed to load conversations', e);
-        try {
-          const stored = typeof window !== 'undefined' ? sessionStorage.getItem('recentChats') : null;
-          if (stored) {
-            const parsed = JSON.parse(stored) as ChatItem[];
-            if (Array.isArray(parsed)) setChats(parsed);
-          }
-        } catch (storageError) {
-          // ignore
-        }
       }
     };
 
@@ -312,9 +318,7 @@ export function ChatSection({
   useEffect(() => {
     try {
       sessionStorage.setItem('recentChats', JSON.stringify(chats));
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
   }, [chats]);
 
   useEffect(() => {
@@ -796,13 +800,13 @@ export function ChatSection({
   };
 
   const handleDeleteConfirm = async () => {
-    if (!selectedMessage || !selectedChat) return;
+    if (!contextMenu.message || !selectedChat) return;
 
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
     if (!token) return;
 
     try {
-      const res = await fetch(`http://localhost:4000/v1/messages/${selectedMessage.id}`, {
+      const res = await fetch(`http://localhost:4000/v1/messages/${contextMenu.message.id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
@@ -816,52 +820,29 @@ export function ChatSection({
         if (deleteForEveryone) {
           setMessages((prev) =>
             prev.map((msg) =>
-              msg.id === selectedMessage.id ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg
+              msg.id === contextMenu.message!.id ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg
             )
           );
           setMessagesCache((prev) => ({
             ...prev,
             [selectedChat]: (prev[selectedChat] || []).map((msg) =>
-              msg.id === selectedMessage.id ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg
+              msg.id === contextMenu.message!.id ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg
             )
           }));
         } else {
-          setMessages((prev) => prev.filter((msg) => msg.id !== selectedMessage.id));
+          setMessages((prev) => prev.filter((msg) => msg.id !== contextMenu.message!.id));
           setMessagesCache((prev) => ({
             ...prev,
-            [selectedChat]: (prev[selectedChat] || []).filter((msg) => msg.id !== selectedMessage.id)
+            [selectedChat]: (prev[selectedChat] || []).filter((msg) => msg.id !== contextMenu.message!.id)
           }));
         }
         setShowDeleteConfirm(false);
-        setSelectedMessage(null);
         setDeleteForEveryone(false);
-        setMenuPosition(null);
+        setContextMenu({ message: null, x: 0, y: 0, visible: false });
       }
     } catch (e) {
       console.error('Failed to delete message', e);
     }
-  };
-
-  const handleReply = () => {
-    if (selectedMessage) {
-      setReplyingTo(selectedMessage);
-      setSelectedMessage(null);
-      setMenuPosition(null);
-    }
-  };
-
-  const handleEdit = () => {
-    if (selectedMessage) {
-      setEditingMessage(selectedMessage);
-      setMessage(selectedMessage.content);
-      setSelectedMessage(null);
-      setMenuPosition(null);
-    }
-  };
-
-  const handleDelete = () => {
-    setShowDeleteConfirm(true);
-    setMenuPosition(null);
   };
 
   const handleBackToList = () => {
@@ -870,74 +851,49 @@ export function ChatSection({
     onChatSelect("");
   };
 
+  // Context Menu: Open
+  const openContextMenu = (msg: Message, e: React.MouseEvent | React.Touch) => {
+    e.preventDefault();
+    const x = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const y = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setContextMenu({ message: msg, x, y, visible: true });
+  };
+
+  // Context Menu: Close on outside click
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node) && selectedMessage && !showDeleteConfirm) {
-        setSelectedMessage(null);
-        setMenuPosition(null);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setContextMenu((prev) => ({ ...prev, visible: false }));
       }
     };
-
-    document.addEventListener('click', handleClickOutside);
-    return () => {
-      document.removeEventListener('click', handleClickOutside);
-    };
-  }, [selectedMessage, showDeleteConfirm]);
-
-  useEffect(() => {
-    if (menuPosition && menuRef.current) {
-      const rect = menuRef.current.getBoundingClientRect();
-      let newX = menuPosition.x;
-      let newY = menuPosition.y;
-
-      if (newX + rect.width > window.innerWidth) {
-        newX = window.innerWidth - rect.width - 10;
-      }
-      if (newY + rect.height > window.innerHeight) {
-        newY = window.innerHeight - rect.height - 10;
-      }
-      if (newX < 0) newX = 10;
-      if (newY < 0) newY = 10;
-
-      if (newX !== menuPosition.x || newY !== menuPosition.y) {
-        setMenuPosition({ x: newX, y: newY });
-      }
+    if (contextMenu.visible) {
+      document.addEventListener("mousedown", handleClickOutside);
     }
-  }, [menuPosition]);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [contextMenu.visible]);
 
-  if (activeTab === "settings") {
-    return (
-      <div className="flex-1 flex">
-        <SettingsSidebar
-          selectedSetting={selectedSetting}
-          onSettingSelect={onSettingSelect}
-          isMobile={isMobile}
-        />
-        <SettingsContent selectedSetting={selectedSetting} isMobile={isMobile} />
-      </div>
-    );
-  }
+  // Adjust menu position to stay in viewport
+  useEffect(() => {
+    if (!contextMenu.visible || !menuRef.current) return;
+    const menu = menuRef.current;
+    const rect = menu.getBoundingClientRect();
+    let { x, y } = contextMenu;
 
-  if (activeTab !== "chats") {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-slate-900/20">
-        <div className="text-center text-slate-400">
-          <div className="text-6xl mb-4">
-            {activeTab === "video" && "📹"}
-            {activeTab === "contacts" && "👥"}
-          </div>
-          <h3 className="text-xl font-semibold mb-2 capitalize">{activeTab}</h3>
-          <p>This feature is coming soon!</p>
-        </div>
-      </div>
-    );
-  }
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 10;
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 10;
+    if (x < 10) x = 10;
+    if (y < 10) y = 10;
+
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+  }, [contextMenu]);
 
   const selectedChatObj = chats.find((c) => c.id === selectedChat);
   const groupedMessages = groupMessagesByDate(messages);
 
   return (
     <div className="flex-1 flex">
+      {/* Left Sidebar */}
       <div
         className={cn(
           "w-80 bg-slate-800/20 backdrop-blur-sm border-r border-slate-700/50 relative z-10",
@@ -1013,9 +969,10 @@ export function ChatSection({
               ))
             )}
           </div>
-        </ScrollArea> 
+        </ScrollArea>
       </div>
 
+      {/* Main Chat */}
       <div
         className={cn(
           "flex-1 flex flex-col bg-slate-900/10 relative",
@@ -1026,27 +983,27 @@ export function ChatSection({
           <>
             <div className="p-4 border-b border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">
               <div className="flex items-center justify-between">
-                  {isMobile && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleBackToList}
-                      className="text-slate-300 hover:text-white hover:bg-slate-700/50"
-                    >
-                      <ArrowLeft className="h-5 w-5" />
-                    </Button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isMobile) {
-                        setShowRightSidebarModal(true);
-                      } else {
-                        onToggleRightPanel?.();
-                      }
-                    }}
-                    className="flex items-center space-x-3 group"
+                {isMobile && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleBackToList}
+                    className="text-slate-300 hover:text-white hover:bg-slate-700/50"
                   >
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isMobile) {
+                      setShowRightSidebarModal(true);
+                    } else {
+                      onToggleRightPanel?.();
+                    }
+                  }}
+                  className="flex items-center space-x-3 group"
+                >
                   <Avatar className="h-10 w-10">
                     <AvatarImage
                       src={selectedChatObj?.avatar || "/placeholder.svg"}
@@ -1062,25 +1019,17 @@ export function ChatSection({
                   </div>
                 </button>
                 <div className="flex items-center space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-slate-300 hover:text-white hover:bg-slate-700/50"
-                  >
+                  <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white hover:bg-slate-700/50">
                     <Phone className="h-5 w-5" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-slate-300 hover:text-white hover:bg-slate-700/50"
-                  >
+                  <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white hover:bg-slate-700/50">
                     <Video className="h-5 w-5" />
                   </Button>
                 </div>
               </div>
             </div>
 
-            <ScrollArea ref={scrollAreaRef} className={cn("flex-1 scrollbar-custom overflow-y-auto", isMobile ? "max-h-[calc(100vh-12rem)] overflow-y-auto" : "max-h-[calc(100vh-8rem)] overflow-y-auto")}>
+            <ScrollArea ref={scrollAreaRef} className={cn("flex-1 scrollbar-custom overflow-y-auto", isMobile ? "max-h-[calc(100vh-12rem)]" : "max-h-[calc(100vh-8rem)]")}>
               <div className="p-4 space-y-6 min-h-full">
                 {loading ? (
                   <div className="flex justify-center items-center h-full">
@@ -1088,197 +1037,129 @@ export function ChatSection({
                   </div>
                 ) : groupedMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                    <div className="mb-6">
-                      <div className="w-20 h-20 mx-auto mb-4 bg-slate-700/50 rounded-full flex items-center justify-center">
-                        <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                        </svg>
-                      </div>
+                    <div className="w-20 h-20 mx-auto mb-4 bg-slate-700/50 rounded-full flex items-center justify-center">
+                      <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                      </svg>
                     </div>
                     <h3 className="text-lg font-semibold text-white mb-2">No conversation yet</h3>
                     <p className="text-slate-400 mb-4 max-w-sm">
-                      Start your first conversation with {selectedChatObj?.name || 'this user'} .
+                      Start your first conversation with {selectedChatObj?.name || 'this user'}.
                     </p>
                   </div>
                 ) : (
                   groupedMessages.map((group, index) => (
                     <div key={group.date || index}>
                       {group.date && (
-                        <div
-                          className="sticky top-0 z-10 bg-transparent text-slate-300 text-center py-2 rounded-lg mx-auto w-fit px-4 mb-4"
-                          style={{ minWidth: '120px' }}
-                        >
+                        <div className="sticky top-0 z-10 bg-transparent text-slate-300 text-center py-2 rounded-lg mx-auto w-fit px-4 mb-4">
                           <span className="text-sm font-medium">{group.date}</span>
                         </div>
                       )}
-                        {group.messages.map((msg) => (
+                      {group.messages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={cn("flex items-end gap-2 my-2", msg.isOwn ? "justify-end" : "justify-start")}
+                          data-message-id={msg.id}
+                          data-is-own={msg.isOwn.toString()}
+                          onContextMenu={(e) => openContextMenu(msg, e)}
+                          onTouchStart={(e) => {
+                            longPressTimer.current = setTimeout(() => openContextMenu(msg, e), 500);
+                          }}
+                          onTouchEnd={() => {
+                            if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                          }}
+                          onTouchMove={() => {
+                            if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                          }}
+                        >
+                          {!msg.isOwn && (
+                            <Avatar className="h-6 w-6 mb-0">
+                              <AvatarImage src={selectedChatObj?.avatar} />
+                              <AvatarFallback className="bg-purple-600 text-white text-xs">
+                                {(selectedChatObj?.name || "F").charAt(0)}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+
                           <div
-                            key={msg.id}
-                            className={cn("flex items-end gap-2", msg.isOwn ? "justify-end" : "justify-start", "my-2")}
-                            data-message-id={msg.id}
-                            data-is-own={msg.isOwn.toString()}
-                            onContextMenu={(e) => {
-                              e.preventDefault();
-                              setSelectedMessage(msg);
-                              setMenuPosition({ x: e.clientX, y: e.clientY });
-                            }}
-                            onTouchStart={(e) => {
-                              setTouchStartPos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-                              longPressTimer.current = setTimeout(() => {
-                                setSelectedMessage(msg);
-                                setMenuPosition(touchStartPos);
-                              }, 500);
-                            }}
-                            onTouchEnd={() => {
-                              if (longPressTimer.current) {
-                                clearTimeout(longPressTimer.current);
-                              }
-                            }}
-                            onTouchMove={() => {
-                              if (longPressTimer.current) {
-                                clearTimeout(longPressTimer.current);
-                              }
-                            }}
+                            className={cn(
+                              "max-w-xs lg:max-w-md flex flex-col",
+                              msg.isOwn
+                                ? "bg-purple-600 text-white rounded-tl-md rounded-bl-md rounded-tr-[1rem] rounded-br-none"
+                                : "bg-slate-700 text-white rounded-tr-md rounded-br-md rounded-tl-[1rem] rounded-bl-none",
+                              msg.mediaType?.startsWith('image/') ? "p-0" : "px-4 py-2"
+                            )}
                           >
-                            {/* Avatar for friend messages only */}
-                            {!msg.isOwn && (
-                              <div className="flex-shrink-0">
-                                <Avatar className="h-6 w-6 rounded-full mb-0">
-                                  <AvatarImage
-                                    src={selectedChatObj?.avatar || "/placeholder.svg"}
-                                    alt={selectedChatObj?.name || "Friend"}
-                                  />
-                                  <AvatarFallback className="bg-purple-600 text-white text-xs">
-                                    {(selectedChatObj?.name || "F").charAt(0)}
-                                  </AvatarFallback>
-                                </Avatar>
+                            {msg.replyTo && (
+                              <div className="border-l-4 border-purple-500 pl-2 mb-2 bg-slate-700/20 p-2 rounded text-xs text-slate-300">
+                                <p className="font-medium text-slate-200">{msg.replyTo.sender.username}</p>
+                                <p className="truncate">
+                                  {msg.replyTo.isDeleted ? "This message was deleted" : msg.replyTo.content || (msg.replyTo.mediaType?.startsWith('image/') ? "Image" : "File")}
+                                </p>
                               </div>
                             )}
-                            
-                            <div
-                              className={cn(
-                                "max-w-xs lg:max-w-md flex flex-col",
-                                // Remove rounding from corners and apply different styles based on ownership
-                                msg.isOwn 
-                                  ? "bg-purple-600 text-white rounded-tl-md rounded-bl-md rounded-tr-[1rem] rounded-br-none" 
-                                  : "bg-slate-700 text-white rounded-tr-md rounded-br-md rounded-tl-[1rem] rounded-bl-none",
-                                // remove inner padding for images, keep it for other messages
-                                msg.mediaType?.startsWith('image/') ? "w-full" : "px-4 py-2"
-                              )}
-                            >
-                              {msg.replyTo && (
-                                <div className="border-l-4 border-purple-500 pl-2 mb-2 bg-slate-700/20 p-2 rounded text-xs text-slate-300">
-                                  <p className="font-medium text-slate-200">{msg.replyTo.sender.username}</p>
-                                  <p className="truncate">
-                                    {msg.replyTo.isDeleted ? "This message was deleted" : msg.replyTo.content || (msg.replyTo.mediaType?.startsWith('image/') ? "Image" : "File")}
-                                  </p>
-                                </div>
-                              )}
-                              {msg.isDeleted ? (
-                                <p className="text-sm text-slate-400 italic">This message was deleted</p>
-                              ) : (
-                                <>
-                                  {/* IMAGE CASE - full-bleed image with overlayed timestamp/check */}
-                                  {msg.mediaUrl && msg.mediaType?.startsWith('image/') ? (
-                                    <div className="mb-0 w-full">
-                                      <div
-                                        className={cn(
-                                          "relative w-full overflow-hidden",
-                                          // Remove rounding from image containers too
-                                          msg.isOwn ? "rounded-tl-md rounded-bl-md rounded-tr-md rounded-br-none" : "rounded-tr-md rounded-br-md rounded-tl-md rounded-bl-none",
-                                          // subtle border/ring depending on sender
-                                          msg.isOwn ? "ring-2 ring-purple-500/40" : "ring-1 ring-slate-600/30"
-                                        )}
-                                      >
-                                        <img
-                                          src={msg.mediaUrl || ''}
-                                          alt="Sent image"
-                                          // make image fill the container; adjust h-64 to taste or use max-h
-                                          className="w-full h-64 object-cover block"
-                                          onClick={() => msg.mediaUrl && handleImageClick(msg.mediaUrl)}
-                                        />
-                                        {/* overlay: timestamp + check; sits above image */}
-                                        <div className="absolute bottom-2 right-2 z-20 flex items-center gap-2 bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm">
-                                          <p className={cn("text-[0.7rem] text-white")}>{msg.timestamp}</p>
-                                          {msg.isOwn && (
-                                            <div className="ml-0">
-                                              {msg.status === 'read' ? (
-                                                <IoCheckmarkDone className="w-5 h-4 text-blue-300" />
-                                              ) : (
-                                                <Check className="w-5 h-4 text-purple-200" />
-                                              )}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                      {/* optional caption/content under image */}
-                                      {msg.content && <p className="text-sm mt-2 px-0">{msg.content}</p>}
-                                    </div>
-                                  ) : (
-                                    /* NON-IMAGE CASE - keep previous layout but with square corners */
-                                    <>
-                                      {msg.mediaUrl && (
-                                        <div className="mb-2">
-                                          <div className="pr-3 bg-slate-700/30 rounded-lg border border-slate-600/50 max-w-xs">
-                                            <div className="flex items-center space-x-3">
-                                              <div
-                                                className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center cursor-pointer"
-                                                onClick={() => msg.mediaUrl && window.open(msg.mediaUrl, '_blank')}
-                                              >
-                                                {getFileIcon(msg.mediaType || '')}
-                                              </div>
-                                              <div className="flex-1 min-w-0">
-                                                <p className="text-sm text-white font-medium truncate">
-                                                  {!msg.mediaType?.startsWith('image/') &&
-                                                    (() => {
-                                                      const fileName = msg.mediaUrl?.split('/').pop() || 'File';
-                                                      try {
-                                                        return decodeURIComponent(fileName);
-                                                      } catch {
-                                                        return fileName;
-                                                      }
-                                                    })()}
-                                                </p>
-                                                <p className="text-xs text-slate-400">
-                                                  {!msg.mediaType?.startsWith('image/') && 'Click to download'}
-                                                </p>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </div>
+
+                            {msg.isDeleted ? (
+                              <p className="italic text-sm text-slate-400">This message was deleted</p>
+                            ) : (
+                              <>
+                                {msg.mediaUrl && msg.mediaType?.startsWith('image/') ? (
+                                  <div className="relative overflow-hidden">
+                                    <img
+                                      src={msg.mediaUrl}
+                                      alt="sent"
+                                      className="w-full h-64 object-cover cursor-pointer"
+                                      onClick={() => handleImageClick(msg.mediaUrl!)}
+                                    />
+                                    <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm">
+                                      <span className="text-xs text-white">{msg.timestamp}</span>
+                                      {msg.isOwn && (
+                                        msg.status === 'read' ? <IoCheckmarkDone className="w-4 h-4 text-blue-300" /> : <Check className="w-4 h-4 text-purple-200" />
                                       )}
-                                      {msg.content && <p className="text-sm">{msg.content}</p>}
-                                      {/* timestamp/check for non-image messages */}
-                                      <div className="flex items-center justify-end mt-1 space-x-1">
-                                        {msg.isEdited && <p className="text-[0.6rem] text-slate-400">edited</p>}
-                                        <p
-                                          className={cn(
-                                            "text-[0.7rem]",
-                                            msg.isOwn ? "text-purple-200" : "text-slate-400"
-                                          )}
-                                        >
-                                          {msg.timestamp}
-                                        </p>
-                                        {msg.isOwn && (
-                                          <div className="ml-1">
-                                            {msg.status === 'read' ? (
-                                              <IoCheckmarkDone className="w-6 h-5 text-blue-400" />
-                                            ) : (
-                                              <Check className="w-6 h-4 text-purple-200" />
-                                            )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    {msg.mediaUrl && (
+                                      <div className="mb-2">
+                                        <div className="flex items-center gap-3 bg-slate-700/30 rounded-lg border border-slate-600/50 p-2">
+                                          <div
+                                            className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center cursor-pointer"
+                                            onClick={() => window.open(msg.mediaUrl!, "_blank")}
+                                          >
+                                            {getFileIcon(msg.mediaType)}
                                           </div>
-                                        )}
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm text-white truncate">
+                                              {(() => {
+                                                const name = msg.mediaUrl?.split("/").pop() || "File";
+                                                try { return decodeURIComponent(name); } catch { return name; }
+                                              })()}
+                                            </p>
+                                            <p className="text-xs text-slate-400">Click to download</p>
+                                          </div>
+                                        </div>
                                       </div>
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                            
-                            {/* Empty space on the right for friend messages to balance alignment */}
-                            {!msg.isOwn && <div className="w-8 flex-shrink-0"></div>}
+                                    )}
+                                    {msg.content && <p className="text-sm">{msg.content}</p>}
+                                    <div className="flex items-center justify-end mt-1 gap-1">
+                                      {msg.isEdited && <span className="text-[0.6rem] text-slate-400">edited</span>}
+                                      <span className={cn("text-[0.7rem]", msg.isOwn ? "text-purple-200" : "text-slate-400")}>
+                                        {msg.timestamp}
+                                      </span>
+                                      {msg.isOwn && (
+                                        msg.status === 'read' ? <IoCheckmarkDone className="w-5 h-4 text-blue-400" /> : <Check className="w-5 h-4 text-purple-200" />
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </>
+                            )}
                           </div>
-                        ))}
+
+                          {!msg.isOwn && <div className="w-8 flex-shrink-0" />}
+                        </div>
+                      ))}
                     </div>
                   ))
                 )}
@@ -1287,10 +1168,10 @@ export function ChatSection({
             </ScrollArea>
 
             {showScrollDownButton && (
-              <div className="absolute bottom-24 right-4 z-50 pointer-events-none">
+              <div className="absolute bottom-24 right-4 z-50">
                 <Button
                   onClick={handleScrollDown}
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg animate-bounce pointer-events-auto"
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg animate-bounce"
                   size="icon"
                 >
                   <ChevronDown className="h-5 w-5" />
@@ -1298,12 +1179,13 @@ export function ChatSection({
               </div>
             )}
 
-            <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm sticky bottom-0 z-10 relative">
+            {/* Input Area */}
+            <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm sticky bottom-0 z-10">
               {showDeleteConfirm && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50">
                   <div className="bg-slate-800 p-4 rounded-lg">
                     <h3 className="text-white mb-2">Delete message?</h3>
-                    {selectedMessage?.isOwn && (
+                    {contextMenu.message?.isOwn && (
                       <label className="flex items-center text-slate-300">
                         <input
                           type="checkbox"
@@ -1325,118 +1207,102 @@ export function ChatSection({
                   </div>
                 </div>
               )}
-              {selectedMessage && menuPosition && !showDeleteConfirm && (
-                <div
-                  ref={menuRef}
-                  className="absolute z-50 bg-slate-800 rounded-lg shadow-lg flex flex-col p-2"
-                  style={{ left: `${menuPosition.x}px`, top: `${menuPosition.y}px` }}
-                >
-                  <Button variant="ghost" className="justify-start" onClick={handleReply}>Reply</Button>
-                  {selectedMessage.isOwn && !selectedMessage.isDeleted && (
-                    <Button variant="ghost" className="justify-start" onClick={handleEdit}>Edit</Button>
-                  )}
-                  <Button variant="ghost" className="justify-start" onClick={handleDelete}>Delete</Button>
-                  <Button variant="ghost" className="justify-start" onClick={() => {
-                    setSelectedMessage(null);
-                    setMenuPosition(null);
-                  }}>Cancel</Button>
+
+              {(replyingTo || editingMessage) && (
+                <div className="mb-2 p-2 bg-slate-700/30 rounded-lg flex justify-between items-center">
+                  <div>
+                    <p className="text-sm text-purple-400">{replyingTo ? 'Replying to' : 'Editing'}:</p>
+                    <p className="text-xs text-slate-300 truncate max-w-xs">
+                      {replyingTo?.content || editingMessage?.content || 'Message'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setReplyingTo(null);
+                      setEditingMessage(null);
+                      setMessage('');
+                    }}
+                  >
+                    ✕
+                  </Button>
                 </div>
               )}
-              <>
-                {(replyingTo || editingMessage) && (
-                  <div className="mb-2 p-2 bg-slate-700/30 rounded-lg flex justify-between items-center">
-                    <div>
-                      <p className="text-sm text-purple-400">{replyingTo ? 'Replying to' : 'Editing'}:</p>
-                      <p className="text-xs text-slate-300 truncate max-w-xs">
-                        {replyingTo?.content || editingMessage?.content || 'Message'}
-                      </p>
+
+              {selectedFile && (
+                <div className="mb-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      {selectedFile.type.startsWith('image/') ? (
+                        <img
+                          src={URL.createObjectURL(selectedFile)}
+                          alt="Preview"
+                          className="w-12 h-12 object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center">
+                          {getFileIcon(selectedFile.type || '')}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-sm text-white font-medium">{selectedFile.name}</p>
+                        <p className="text-xs text-slate-400">
+                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => {
-                        setReplyingTo(null);
-                        setEditingMessage(null);
-                        setMessage('');
+                        setSelectedFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
                       }}
+                      className="text-slate-400 hover:text-white hover:bg-slate-700/50"
                     >
                       ✕
                     </Button>
                   </div>
-                )}
-                {selectedFile && (
-                  <div className="mb-3 p-3 bg-slate-700/30 rounded-lg border border-slate-600/50">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        {selectedFile.type.startsWith('image/') ? (
-                          <img
-                            src={URL.createObjectURL(selectedFile)}
-                            alt="Preview"
-                            className="w-12 h-12 object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center">
-                            {getFileIcon(selectedFile.type || '')}
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-sm text-white font-medium">{selectedFile.name}</p>
-                          <p className="text-xs text-slate-400">
-                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setSelectedFile(null);
-                          if (fileInputRef.current) fileInputRef.current.value = '';
-                        }}
-                        className="text-slate-400 hover:text-white hover:bg-slate-700/50"
-                      >
-                        ✕
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center space-x-2">
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-slate-400 hover:text-white hover:bg-slate-700/50"
+                  onClick={handlePaperclipClick}
+                >
+                  <Paperclip className="h-5 w-5" />
+                </Button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  className="hidden"
+                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                />
+                <div className="flex-1 relative">
+                  <Input
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Type a message..."
+                    className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400 pr-12"
+                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                  />
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-slate-400 hover:text-white hover:bg-slate-700/50"
-                    onClick={handlePaperclipClick}
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
                   >
-                    <Paperclip className="h-5 w-5" />
-                  </Button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
-                  />
-                  <div className="flex-1 relative">
-                    <Input
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      placeholder="Type a message..."
-                      className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400 pr-12"
-                      onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-1 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
-                    >
-                      <Smile className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Button onClick={handleSendMessage} className="bg-purple-600 hover:bg-purple-700 text-white">
-                    <Send className="h-4 w-4" />
+                    <Smile className="h-4 w-4" />
                   </Button>
                 </div>
-              </>
+                <Button onClick={handleSendMessage} className="bg-purple-600 hover:bg-purple-700 text-white">
+                  <Send className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </>
         ) : (
@@ -1453,6 +1319,51 @@ export function ChatSection({
           </div>
         )}
       </div>
+
+      {/* Telegram-Style Context Menu */}
+      {contextMenu.visible && contextMenu.message && (
+        <div
+          ref={menuRef}
+          className="fixed z-50 bg-slate-800 rounded-lg shadow-xl py-1 w-44 border border-slate-700"
+          style={{ left: 0, top: 0 }}
+        >
+          <button
+            onClick={() => {
+              setReplyingTo(contextMenu.message);
+              setContextMenu({ ...contextMenu, visible: false });
+            }}
+            className="flex items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-slate-700 w-full text-left transition"
+          >
+            <Reply className="w-4 h-4" />
+            Reply
+          </button>
+
+          {contextMenu.message.isOwn && !contextMenu.message.isDeleted && (
+            <button
+              onClick={() => {
+                setEditingMessage(contextMenu.message);
+                setMessage(contextMenu.message.content);
+                setContextMenu({ ...contextMenu, visible: false });
+              }}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-slate-700 w-full text-left transition"
+            >
+              <Edit className="w-4 h-4" />
+              Edit
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              setShowDeleteConfirm(true);
+              setContextMenu({ ...contextMenu, visible: false });
+            }}
+            className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-slate-700 w-full text-left transition"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        </div>
+      )}
 
       {showModal && (
         <Modal onClose={() => setShowModal(false)}>
@@ -1475,7 +1386,6 @@ export function ChatSection({
           </div>
         </Modal>
       )}
-
     </div>
   );
 }
