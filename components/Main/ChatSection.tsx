@@ -53,6 +53,7 @@ interface ChatItem {
   lastReadTimestamp?: string;
   lastMessageStatus?: 'sent' | 'read';
   lastMessageFromCurrentUser?: boolean;
+  lastSeen?: string;
 }
 
 interface ReplyTo {
@@ -114,6 +115,7 @@ export function ChatSection({
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteForEveryone, setDeleteForEveryone] = useState(false);
+  const [onlineStatus, setOnlineStatus] = useState<Record<string, { isOnline: boolean; lastSeen?: string }>>({});
 
   // Context Menu State
   const [contextMenu, setContextMenu] = useState<{
@@ -156,6 +158,24 @@ export function ChatSection({
       hour12: true,
       timeZone: 'UTC',
     });
+  };
+
+  const formatLastSeen = (lastSeen?: string): string => {
+    if (!lastSeen) return "Offline";
+
+    const now = Date.now();
+    const seen = new Date(lastSeen).getTime();
+    const diffMins = Math.floor((now - seen) / 60000);
+
+    if (diffMins < 1) return "Last seen just now";
+    if (diffMins < 5) return "Last seen recently";
+    if (diffMins < 60) return `Last seen ${diffMins} min ago`;
+    if (diffMins < 1440) {
+      const hours = Math.floor(diffMins / 60);
+      return `Last seen ${hours} hour${hours > 1 ? 's' : ''} ago`;
+    }
+    if (diffMins < 2880) return "Last seen yesterday";
+    return `Last seen ${new Date(lastSeen).toLocaleDateString()}`;
   };
 
   const groupMessagesByDate = (messages: Message[]) => {
@@ -206,7 +226,7 @@ export function ChatSection({
     return <FaFile className="h-6 w-6" />;
   };
 
-  const upsertChatPreview = (
+const upsertChatPreview = (
     chatId: string,
     opts: {
       name?: string;
@@ -218,11 +238,13 @@ export function ChatSection({
       preserveOrder?: boolean;
       isFromCurrentUser?: boolean;
       messageStatus?: 'sent' | 'read';
+      online?: boolean; // ← accept online
+      lastSeen?: string; // ← accept lastSeen
     } = {}
   ) => {
     setChats((prev) => {
       const existingIndex = prev.findIndex((c) => c.id === chatId);
-      const timestamp = opts.timestamp;
+      const timestamp = opts.timestamp || formatTimestamp();
       if (existingIndex !== -1) {
         const existing = prev[existingIndex];
         const updated: ChatItem = {
@@ -230,7 +252,7 @@ export function ChatSection({
           name: opts.name ?? existing.name,
           avatar: opts.avatar ?? existing.avatar,
           lastMessage: opts.lastMessage ?? (existing.lastMessage.includes('Media') ? 'Media' : existing.lastMessage),
-          timestamp: timestamp ?? existing.timestamp,
+          timestamp: timestamp,
           unread: opts.resetUnread
             ? 0
             : opts.incrementUnread
@@ -244,6 +266,8 @@ export function ChatSection({
             : existing.lastReadTimestamp,
           lastMessageStatus: opts.isFromCurrentUser ? (opts.messageStatus || 'sent') : existing.lastMessageStatus,
           lastMessageFromCurrentUser: opts.isFromCurrentUser ?? existing.lastMessageFromCurrentUser,
+          online: opts.online ?? existing.online,
+          lastSeen: opts.lastSeen ?? existing.lastSeen,
         };
         if (opts.preserveOrder) {
           return [
@@ -258,10 +282,11 @@ export function ChatSection({
         id: chatId,
         name: opts.name || 'User',
         lastMessage: opts.lastMessage || '',
-        timestamp: timestamp ?? formatTimestamp(),
+        timestamp: timestamp,
         unread: opts.resetUnread ? 0 : opts.incrementUnread ? 1 : 0,
         avatar: opts.avatar,
-        online: false,
+        online: opts.online ?? false,
+        lastSeen: opts.lastSeen,
         lastReadMessage: opts.isFromCurrentUser ? opts.lastMessage : undefined,
         lastReadTimestamp: opts.isFromCurrentUser ? timestamp : undefined,
         lastMessageStatus: opts.isFromCurrentUser ? (opts.messageStatus || 'sent') : undefined,
@@ -349,6 +374,34 @@ export function ChatSection({
     window.addEventListener('klyra:addChatFromSearch', onAddChatFromSearch as EventListener);
     return () => window.removeEventListener('klyra:addChatFromSearch', onAddChatFromSearch as EventListener);
   }, [onChatSelect]);
+
+  useEffect(() => {
+    if (!socket || !currentUser?.id) return;
+
+    const handleUserOnline = (data: { userId: string }) => {
+      setOnlineStatus((prev) => ({
+        ...prev,
+        [data.userId]: { isOnline: true },
+      }));
+      upsertChatPreview(data.userId, { online: true });
+    };
+
+    const handleUserOffline = (data: { userId: string; lastSeen: string }) => {
+      setOnlineStatus((prev) => ({
+        ...prev,
+        [data.userId]: { isOnline: false, lastSeen: data.lastSeen },
+      }));
+      upsertChatPreview(data.userId, { online: false, lastSeen: data.lastSeen });
+    };
+
+    socket.on('userOnline', handleUserOnline);
+    socket.on('userOffline', handleUserOffline);
+
+    return () => {
+      socket.off('userOnline', handleUserOnline);
+      socket.off('userOffline', handleUserOffline);
+    };
+  }, [socket, currentUser?.id]);
 
   const findChatIdByMessageId = (messageId: string | undefined) => {
     if (!messageId) return null;
@@ -905,69 +958,90 @@ export function ChatSection({
         </div>
         <ScrollArea className="h-[calc(100vh-8rem)] scrollbar-custom">
           <div className="p-2">
-            {chats.length === 0 ? (
-              <div className="p-4 text-slate-400 text-center">
-                <img src="/icons/add_user.svg" alt="No messages" className="h-24 w-24 mx-auto mb-4 opacity-50" />
-                <p className="text-sm">No conversations yet.</p>
-                <p className="text-xs mt-1">Search for a user and start a chat.</p>
-              </div>
-            ) : (
-              chats.map((chat) => (
-                <div
-                  key={chat.id}
-                  className={cn(
-                    'p-3 rounded-lg cursor-pointer transition-all duration-200 mb-1',
-                    selectedChat === chat.id
-                      ? 'bg-purple-600/20 border border-purple-500/30'
-                      : 'hover:bg-slate-700/30'
+  {chats.length === 0 ? (
+  <div className="p-4 text-slate-400 text-center">
+    <img src="/icons/add_user.svg" alt="No messages" className="h-24 w-24 mx-auto mb-4 opacity-50" />
+    <p className="text-sm">No conversations yet.</p>
+    <p className="text-xs mt-1">Search for a user and start a chat.</p>
+  </div>
+) : (
+  chats.map((chat) => {
+    // Get real-time status (fallback to chat.online if not in map)
+    const status = onlineStatus[chat.id] ?? {
+      isOnline: chat.online ?? false,
+      lastSeen: chat.lastSeen,
+    };
+
+    return (
+      <div
+        key={chat.id}
+        className={cn(
+          "p-3 rounded-lg cursor-pointer transition-all duration-200 mb-1",
+          selectedChat === chat.id
+            ? "bg-purple-600/20 border border-purple-500/30"
+            : "hover:bg-slate-700/30"
+        )}
+        onClick={() => onChatSelect(chat.id)}
+      >
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={chat.avatar || "/placeholder.svg"} alt={chat.name} />
+              <AvatarFallback className="bg-purple-600 text-white">
+                {chat.name.split(" ").map((n) => n[0]).join("")}
+              </AvatarFallback>
+            </Avatar>
+
+            {/* Online/Offline dot */}
+            <div
+              className={cn(
+                "absolute bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-800",
+                status.isOnline ? "bg-green-500" : "bg-slate-500"
+              )}
+            />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <h4 className="text-white font-medium leading-tight truncate">{chat.name}</h4>
+              <span className="text-xs text-slate-400">{chat.timestamp}</span>
+            </div>
+
+            {(chat.lastMessage || chat.lastReadMessage) && (
+              <div className="flex items-center justify-between mt-0.5">
+                <div className="flex items-center justify-between flex-1 min-w-0">
+                  <p className="text-sm text-slate-400 truncate">
+                    {chat.unread > 0 && chat.lastReadMessage ? chat.lastReadMessage : chat.lastMessage}
+                  </p>
+
+                  {chat.lastMessageFromCurrentUser && (
+                    <div className="flex-shrink-0">
+                      {chat.lastMessageStatus === "read" ? (
+                        <IoCheckmarkDone className="w-6 h-5 text-blue-400" />
+                      ) : (
+                        <Check className="w-6 h-4 text-slate-400" />
+                      )}
+                    </div>
                   )}
-                  onClick={() => onChatSelect(chat.id)}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className="relative">
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={chat.avatar || '/placeholder.svg'} alt={chat.name} />
-                        <AvatarFallback className="bg-purple-600 text-white">
-                          {chat.name.split(' ').map((n) => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      {chat.online && (
-                        <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-slate-800"></div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-white font-medium leading-tight truncate">{chat.name}</h4>
-                        <span className="text-xs text-slate-400">{chat.timestamp}</span>
-                      </div>
-                      {(chat.lastMessage || chat.lastReadMessage) && (
-                        <div className="flex items-center justify-between mt-0.5">
-                          <div className="flex items-center justify-between flex-1 min-w-0">
-                            <p className="text-sm text-slate-400 truncate">
-                              {chat.unread > 0 && chat.lastReadMessage ? chat.lastReadMessage : chat.lastMessage}
-                            </p>
-                            {chat.lastMessageFromCurrentUser && (
-                              <div className="flex-shrink-0">
-                                {chat.lastMessageStatus === 'read' ? (
-                                  <IoCheckmarkDone className="w-6 h-5 text-blue-400" />
-                                ) : (
-                                  <Check className="w-6 h-4 text-slate-400" />
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          {chat.unread > 0 && (
-                            <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center ml-2">
-                              {chat.unread}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
-              ))
+
+                {chat.unread > 0 && (
+                  <span className="bg-purple-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center ml-2">
+                    {chat.unread}
+                  </span>
+                )}
+              </div>
             )}
+
+            {!status.isOnline && status.lastSeen && (
+              <p className="text-xs text-slate-500 mt-1">{formatLastSeen(status.lastSeen)}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  })
+)}
           </div>
         </ScrollArea>
       </div>
@@ -1015,7 +1089,16 @@ export function ChatSection({
                   </Avatar>
                   <div>
                     <h3 className="text-white font-semibold">{selectedChatObj?.name || "Conversation"}</h3>
-                    <p className="text-sm text-green-400">Online</p>
+                    {(() => {
+                      const status = onlineStatus[selectedChat || ''] || { isOnline: selectedChatObj?.online || false, lastSeen: selectedChatObj?.lastSeen };
+                      return status.isOnline ? (
+                        <p className="text-sm text-green-400">Online</p>
+                      ) : (
+                        <p className="text-xs text-slate-400">
+                          {status.lastSeen ? formatLastSeen(status.lastSeen) : "Offline"}
+                        </p>
+                      );
+                    })()}
                   </div>
                 </button>
                 <div className="flex items-center space-x-2">

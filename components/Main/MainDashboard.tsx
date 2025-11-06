@@ -1,4 +1,3 @@
-// components/MainDashboard.jsx
 "use client";
 
 import { useEffect, useState } from "react";
