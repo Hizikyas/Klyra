@@ -1033,9 +1033,9 @@ const upsertChatPreview = (
               </div>
             )}
 
-            {!status.isOnline && status.lastSeen && (
+            {/* {!status.isOnline && status.lastSeen && (
               <p className="text-xs text-slate-500 mt-1">{formatLastSeen(status.lastSeen)}</p>
-            )}
+            )} */}
           </div>
         </div>
       </div>
