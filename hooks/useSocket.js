@@ -12,13 +12,14 @@ export const useSocket = (userId, groupId) => {
 
   useEffect(() => {
     // Initialize Socket.IO client
-    const currentUser = sessionStorage.getItem("currentUser") ;
-    
+    const currentUserRaw = sessionStorage.getItem("currentUser");
+    const currentUser = currentUserRaw ? JSON.parse(currentUserRaw) : null;
+
     const newSocket = io(SOCKET_URL, {
       withCredentials: true,
       transports: ["websocket"], // avoid polling to bypass CORS cookies constraint
       auth: {
-             userId: currentUser?.id, 
+             userId: currentUser?.id,
          },
     });
 

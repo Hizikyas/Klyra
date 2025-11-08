@@ -15,14 +15,14 @@ import {
   Reply,
   Edit,
   Trash2,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { SettingsSidebar } from "./SettingsSidebar";
-import { SettingsContent } from "./SettingsContent";
+
 import { IoCheckmarkDone } from "react-icons/io5";
 import { FaFile, FaFilePdf, FaFileWord, FaFileExcel } from "react-icons/fa";
 import Modal from "../ui/modalIMG";
@@ -83,17 +83,18 @@ interface Message {
   replyTo?: ReplyTo;
 }
 
-export function ChatSection({
-  activeTab,
-  selectedChat,
-  onChatSelect,
-  isMobile = false,
-  onToggleRightPanel,
-  selectedSetting,
-  onSettingSelect,
-  socket,
-  isRightCollapsed = false,
-}: ChatSectionProps) {
+export function ChatSection(props: ChatSectionProps) {
+  const {
+    activeTab,
+    selectedChat,
+    onChatSelect,
+    isMobile = false,
+    onToggleRightPanel,
+    selectedSetting,
+    onSettingSelect,
+    socket,
+    isRightCollapsed = false,
+  } = props;
   const [message, setMessage] = useState("");
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -169,7 +170,6 @@ export function ChatSection({
 
     if (diffMins < 1) return "Last seen just now";
     if (diffMins < 5) return "Last seen recently";
-    if (diffMins < 60) return `Last seen ${diffMins} min ago`;
     if (diffMins < 1440) {
       const hours = Math.floor(diffMins / 60);
       return `Last seen ${hours} hour${hours > 1 ? 's' : ''} ago`;
@@ -325,7 +325,8 @@ const upsertChatPreview = (
               timestamp: conv.lastMessage?.createdAt ? formatTimestamp(conv.lastMessage.createdAt) : '',
               unread: Math.max(0, conv.unreadCount ?? conv.unread ?? 0),
               avatar: conv.participant?.avatar,
-              online: false,
+              online: onlineStatus[conv.participantId]?.isOnline ?? false,
+              lastSeen: onlineStatus[conv.participantId]?.lastSeen,
             }));
             setChats(mappedChats);
           }
@@ -338,7 +339,7 @@ const upsertChatPreview = (
     loadConversations();
     const interval = setInterval(loadConversations, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [onlineStatus]);
 
   useEffect(() => {
     try {
@@ -394,12 +395,30 @@ const upsertChatPreview = (
       upsertChatPreview(data.userId, { online: false, lastSeen: data.lastSeen });
     };
 
+    const handleOnlineUsers = (onlineUserIds: string[]) => {
+      setOnlineStatus((prev) => {
+        const updated = { ...prev };
+        onlineUserIds.forEach((id: string) => {
+          updated[id] = { isOnline: true };
+        });
+        return updated;
+      });
+      // Update chats to reflect online status
+      setChats((prev) =>
+        prev.map((chat) =>
+          onlineUserIds.includes(chat.id) ? { ...chat, online: true } : chat
+        )
+      );
+    };
+
     socket.on('userOnline', handleUserOnline);
     socket.on('userOffline', handleUserOffline);
+    socket.on('onlineUsers', handleOnlineUsers);
 
     return () => {
       socket.off('userOnline', handleUserOnline);
       socket.off('userOffline', handleUserOffline);
+      socket.off('onlineUsers', handleOnlineUsers);
     };
   }, [socket, currentUser?.id]);
 
@@ -465,7 +484,7 @@ const upsertChatPreview = (
             } : undefined,
           }));
 
-          setMessagesCache((prev) => ({ ...prev, [selectedChat]: mapped }));
+          setMessagesCache((prev) => ({ ...prev, [selectedChat!]: mapped }));
           setMessages(mapped);
 
           const last = mapped[mapped.length - 1];
@@ -550,11 +569,29 @@ const upsertChatPreview = (
         } : undefined,
       };
 
-      setMessages((prev) => [...prev, newMessageObj]);
-      setMessagesCache((prev) => ({
-        ...prev,
-        [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
-      }));
+      setMessages((prev) => {
+        const existingIndex = prev.findIndex((m) => m.id === newMessageObj.id);
+        if (existingIndex !== -1) {
+          // Update existing message (e.g., status change)
+          const updated = [...prev];
+          updated[existingIndex] = { ...updated[existingIndex], ...newMessageObj };
+          return updated;
+        } else {
+          // Add new message
+          return [...prev, newMessageObj];
+        }
+      });
+      setMessagesCache((prev) => {
+        const existing = prev[selectedChat!] || [];
+        const existingIndex = existing.findIndex((m) => m.id === newMessageObj.id);
+        if (existingIndex !== -1) {
+          const updated = [...existing];
+          updated[existingIndex] = { ...updated[existingIndex], ...newMessageObj };
+          return { ...prev, [selectedChat!]: updated };
+        } else {
+          return { ...prev, [selectedChat!]: [...existing, newMessageObj] };
+        }
+      });
 
       const otherUserId = newMessage.senderId === currentUser.id ? newMessage.recipientId : newMessage.senderId;
       const otherUserName = newMessage.senderId === currentUser.id ? newMessage.recipient?.username : newMessage.sender?.username;
@@ -562,24 +599,38 @@ const upsertChatPreview = (
 
       const shouldIncrementUnread = newMessage.senderId !== currentUser?.id && otherUserId !== selectedChat;
 
-      upsertChatPreview(otherUserId, {
-        name: otherUserName,
-        avatar: otherUserAvatar,
-        lastMessage: newMessage.content || (newMessage.mediaUrl ? (newMessage.mediaType?.startsWith('image/') ? 'Image' : 'File') : 'Media'),
-        timestamp: formatTimestamp(newMessage.createdAt),
-        incrementUnread: shouldIncrementUnread,
-        isFromCurrentUser: newMessage.senderId === currentUser?.id,
-        messageStatus: newMessage.senderId === currentUser?.id ? (newMessage.status || 'sent') : undefined,
-      });
+      if (shouldIncrementUnread) {
+        upsertChatPreview(otherUserId, {
+          name: otherUserName,
+          avatar: otherUserAvatar,
+          lastMessage: newMessage.content || (newMessage.mediaUrl ? (newMessage.mediaType?.startsWith('image/') ? 'Image' : 'File') : ''),
+          timestamp: formatTimestamp(newMessage.createdAt),
+          incrementUnread: true,
+          isFromCurrentUser: false,
+        });
+      }
+
+      // Update the chat preview for the current chat if it's the selected one
+      if (selectedChat === otherUserId) {
+        upsertChatPreview(selectedChat, {
+          lastMessage: newMessage.content || (newMessage.mediaUrl ? (newMessage.mediaType?.startsWith('image/') ? 'Image' : 'File') : ''),
+          timestamp: formatTimestamp(newMessage.createdAt),
+          resetUnread: true,
+          preserveOrder: true,
+          isFromCurrentUser: false,
+        });
+      }
     };
 
     const handleMessageUpdated = (updatedMessage: any) => {
+      if (!selectedChat) return;
+      const chatId = selectedChat!;
       setMessages((prev) =>
         prev.map((msg: Message) => (msg.id === updatedMessage.id ? { ...msg, content: updatedMessage.content || msg.content, isEdited: updatedMessage.isEdited } : msg))
       );
       setMessagesCache((prev) => ({
         ...prev,
-        [selectedChat]: (prev[selectedChat] || []).map((msg: Message) => (msg.id === updatedMessage.id ? { ...msg, content: updatedMessage.content || msg.content, isEdited: updatedMessage.isEdited } : msg))
+        [chatId]: (prev[chatId] || []).map((msg: Message) => (msg.id === updatedMessage.id ? { ...msg, content: updatedMessage.content || msg.content, isEdited: updatedMessage.isEdited } : msg))
       }));
     };
 
@@ -852,6 +903,17 @@ const upsertChatPreview = (
     }
   };
 
+  const handleCopyMessage = async (msg: Message) => {
+    if (msg.content && !msg.isDeleted) {
+      try {
+        await navigator.clipboard.writeText(msg.content);
+      } catch (e) {
+        console.error('Failed to copy message', e);
+      }
+    }
+    setContextMenu({ message: null, x: 0, y: 0, visible: false });
+  };
+
   const handleDeleteConfirm = async () => {
     if (!contextMenu.message || !selectedChat) return;
 
@@ -905,7 +967,7 @@ const upsertChatPreview = (
   };
 
   // Context Menu: Open
-  const openContextMenu = (msg: Message, e: React.MouseEvent | React.Touch) => {
+  const openContextMenu = (msg: Message, e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     const x = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const y = 'touches' in e ? e.touches[0].clientY : e.clientY;
@@ -1033,9 +1095,6 @@ const upsertChatPreview = (
               </div>
             )}
 
-            {/* {!status.isOnline && status.lastSeen && (
-              <p className="text-xs text-slate-500 mt-1">{formatLastSeen(status.lastSeen)}</p>
-            )} */}
           </div>
         </div>
       </div>
@@ -1420,6 +1479,19 @@ const upsertChatPreview = (
             <Reply className="w-4 h-4" />
             Reply
           </button>
+
+          {!contextMenu.message.isDeleted && (
+            <button
+              onClick={() => {
+                handleCopyMessage(contextMenu.message!);
+                setContextMenu({ ...contextMenu, visible: false });
+              }}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-slate-700 w-full text-left transition"
+            >
+              <Copy className="w-4 h-4" />
+              Copy
+            </button>
+          )}
 
           {contextMenu.message.isOwn && !contextMenu.message.isDeleted && (
             <button
