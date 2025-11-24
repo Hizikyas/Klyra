@@ -34,7 +34,7 @@ export function LeftSidebar({ activeTab, onTabChange }: LeftSidebarProps) {
       <div className="p-6 border-b border-slate-700/50">
         <div className={cn("flex items-center", showLabels ? "space-x-3" : "justify-center")}> 
           <div className="relative">
-             <Avatar className={cn("h-12 w-12", !showLabels && "h-10 w-10")}>
+             <Avatar className={cn("h-12 w-12", !showLabels && "h-12 w-12")}>
                {currentUser?.avatar ? (
                  <AvatarImage src={currentUser?.avatar} alt={currentUser?.fullname || 'User'} />
                ) : (

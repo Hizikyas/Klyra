@@ -537,24 +537,51 @@ const upsertChatPreview = (
   }, [selectedChat]);
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || !currentUser?.id) return;
+
+    const toKey = (value: string | number | null | undefined) =>
+      value !== undefined && value !== null ? String(value) : null;
 
     const handleNewMessage = (newMessage: any) => {
-      const isForThisChat =
-        (newMessage.recipientId && newMessage.recipientId === currentUser?.id && newMessage.senderId === selectedChat) ||
-        (newMessage.recipientId && newMessage.senderId === currentUser?.id && newMessage.recipientId === selectedChat);
+      // Determine if this message is for the current user (as recipient or sender)
+      const currentUserId = toKey(currentUser.id);
+      const senderId = toKey(newMessage.senderId);
+      const recipientId = toKey(newMessage.recipientId);
+      const selectedChatId = toKey(selectedChat);
 
-      if (!selectedChat || !isForThisChat) return;
+      if (!currentUserId) return;
+
+      const isForCurrentUser =
+        recipientId === currentUserId ||
+        senderId === currentUserId;
+      
+      if (!isForCurrentUser) return;
+
+      // Determine the chat partner ID
+      const chatPartnerId = senderId === currentUserId
+        ? recipientId
+        : senderId;
+
+      if (!chatPartnerId) return;
+
+      // Check if this message is for the currently selected chat
+      const isForSelectedChat = selectedChatId === chatPartnerId;
+
+      // Get sender username from chat list or use fallback
+      const chatPartner = chats.find(c => String(c.id) === chatPartnerId);
+      const senderUsername = senderId === currentUserId
+        ? 'You' 
+        : (chatPartner?.name || newMessage.sender?.username || 'Unknown');
 
       const newMessageObj: Message = {
         id: newMessage.id,
-        sender: newMessage.senderId === currentUser.id ? 'You' : newMessage.sender?.username || 'Unknown',
+        sender: senderUsername,
         content: newMessage.content || '',
         mediaUrl: newMessage.mediaUrl || undefined,
         mediaType: newMessage.mediaType || undefined,
         timestamp: formatTimestamp(newMessage.createdAt),
         createdAt: newMessage.createdAt,
-        isOwn: newMessage.senderId === currentUser?.id,
+        isOwn: newMessage.senderId === currentUser.id,
         isRead: newMessage.isRead,
         status: newMessage.senderId === currentUser.id ? (newMessage.isRead ? 'read' as const : 'sent' as const) : undefined,
         isEdited: newMessage.isEdited,
@@ -569,57 +596,52 @@ const upsertChatPreview = (
         } : undefined,
       };
 
-      setMessages((prev) => {
-        const existingIndex = prev.findIndex((m) => m.id === newMessageObj.id);
-        if (existingIndex !== -1) {
-          // Update existing message (e.g., status change)
-          const updated = [...prev];
-          updated[existingIndex] = { ...updated[existingIndex], ...newMessageObj };
-          return updated;
-        } else {
-          // Add new message
-          return [...prev, newMessageObj];
-        }
-      });
+      // Always update the cache for this chat
       setMessagesCache((prev) => {
-        const existing = prev[selectedChat!] || [];
+        const existing = prev[chatPartnerId] || [];
         const existingIndex = existing.findIndex((m) => m.id === newMessageObj.id);
         if (existingIndex !== -1) {
           const updated = [...existing];
           updated[existingIndex] = { ...updated[existingIndex], ...newMessageObj };
-          return { ...prev, [selectedChat!]: updated };
+          return { ...prev, [chatPartnerId]: updated };
         } else {
-          return { ...prev, [selectedChat!]: [...existing, newMessageObj] };
+          return { ...prev, [chatPartnerId]: [...existing, newMessageObj] };
         }
       });
 
-      const otherUserId = newMessage.senderId === currentUser.id ? newMessage.recipientId : newMessage.senderId;
-      const otherUserName = newMessage.senderId === currentUser.id ? newMessage.recipient?.username : newMessage.sender?.username;
-      const otherUserAvatar = newMessage.senderId === currentUser.id ? newMessage.recipient?.avatar : newMessage.sender?.avatar;
-
-      const shouldIncrementUnread = newMessage.senderId !== currentUser?.id && otherUserId !== selectedChat;
-
-      if (shouldIncrementUnread) {
-        upsertChatPreview(otherUserId, {
-          name: otherUserName,
-          avatar: otherUserAvatar,
-          lastMessage: newMessage.content || (newMessage.mediaUrl ? (newMessage.mediaType?.startsWith('image/') ? 'Image' : 'File') : ''),
-          timestamp: formatTimestamp(newMessage.createdAt),
-          incrementUnread: true,
-          isFromCurrentUser: false,
+      // Only update the displayed messages if this is the selected chat
+      if (isForSelectedChat) {
+        setMessages((prev) => {
+          const existingIndex = prev.findIndex((m) => m.id === newMessageObj.id);
+          if (existingIndex !== -1) {
+            // Update existing message (e.g., status change)
+            const updated = [...prev];
+            updated[existingIndex] = { ...updated[existingIndex], ...newMessageObj };
+            return updated;
+          } else {
+            // Add new message
+            return [...prev, newMessageObj];
+          }
         });
       }
 
-      // Update the chat preview for the current chat if it's the selected one
-      if (selectedChat === otherUserId) {
-        upsertChatPreview(selectedChat, {
-          lastMessage: newMessage.content || (newMessage.mediaUrl ? (newMessage.mediaType?.startsWith('image/') ? 'Image' : 'File') : ''),
-          timestamp: formatTimestamp(newMessage.createdAt),
-          resetUnread: true,
-          preserveOrder: true,
-          isFromCurrentUser: false,
-        });
-      }
+      // Update chat preview
+      const lastMessageText = newMessage.content || 
+        (newMessage.mediaUrl ? (newMessage.mediaType?.startsWith('image/') ? 'Image' : 'File') : '');
+
+      upsertChatPreview(chatPartnerId, {
+        name: chatPartner?.name,
+        avatar: chatPartner?.avatar,
+        lastMessage: lastMessageText,
+        timestamp: formatTimestamp(newMessage.createdAt),
+        incrementUnread: senderId !== currentUserId && !isForSelectedChat,
+        resetUnread: isForSelectedChat,
+        preserveOrder: true,
+        isFromCurrentUser: senderId === currentUserId,
+        messageStatus: senderId === currentUserId
+          ? (newMessage.isRead ? 'read' : 'sent') 
+          : undefined,
+      });
     };
 
     const handleMessageUpdated = (updatedMessage: any) => {
@@ -642,12 +664,14 @@ const upsertChatPreview = (
           return prev.filter((msg) => msg.id !== messageId);
         }
       });
-      setMessagesCache((prev) => ({
-        ...prev,
-        [selectedChat]: deleteForEveryone 
-          ? (prev[selectedChat] || []).map((msg) => msg.id === messageId ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg)
-          : (prev[selectedChat] || []).filter((msg) => msg.id !== messageId)
-      }));
+      if (selectedChat) {
+        setMessagesCache((prev) => ({
+          ...prev,
+          [selectedChat]: deleteForEveryone 
+            ? (prev[selectedChat] || []).map((msg: Message) => msg.id === messageId ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg)
+            : (prev[selectedChat] || []).filter((msg: Message) => msg.id !== messageId)
+        }));
+      }
     };
 
     const handleMessageRead = (data: { messageId: string; isRead: boolean }) => {
@@ -688,7 +712,17 @@ const upsertChatPreview = (
       socket.off('messageDeleted', handleMessageDeleted);
       socket.off('messageRead', handleMessageRead);
     };
-  }, [socket, currentUser?.id, selectedChat, messagesCache]);
+  }, [socket, currentUser?.id, selectedChat, messagesCache, chats]);
+
+  useEffect(() => {
+    if (!selectedChat) return;
+    const cachedMessages = messagesCache[selectedChat];
+    if (cachedMessages) {
+      setMessages(cachedMessages);
+    } else {
+      setMessages([]);
+    }
+  }, [selectedChat, messagesCache]);
 
   useEffect(() => {
     if (!selectedChat) return;
@@ -1007,18 +1041,18 @@ const upsertChatPreview = (
   const groupedMessages = groupMessagesByDate(messages);
 
   return (
-    <div className="flex-1 flex">
+    <div className="flex-1 flex flex-col md:flex-row">
       {/* Left Sidebar */}
       <div
         className={cn(
-          "w-80 bg-slate-800/20 backdrop-blur-sm border-r border-slate-700/50 relative z-10",
-          isMobile ? (selectedChat ? "hidden" : "w-full") : "w-80"
+          "w-full md:w-80 bg-slate-800/20 backdrop-blur-sm border-r border-slate-700/50 relative z-10",
+          isMobile ? (selectedChat ? "hidden" : "w-full") : "w-full md:w-80"
         )}
       >
         <div className="p-4 border-b border-slate-700/50">
           <h2 className="text-lg font-semibold text-white">Messages</h2>
         </div>
-        <ScrollArea className="h-[calc(100vh-8rem)] scrollbar-custom">
+        <ScrollArea className="h-[calc(100vh-8rem)] md:h-[calc(100vh-8rem)] scrollbar-custom">
           <div className="p-2">
   {chats.length === 0 ? (
   <div className="p-4 text-slate-400 text-center">
@@ -1108,70 +1142,70 @@ const upsertChatPreview = (
       {/* Main Chat */}
       <div
         className={cn(
-          "flex-1 flex flex-col bg-slate-900/10 relative",
+          "flex-1 flex flex-col bg-slate-900/10 relative w-full",
           isMobile ? (selectedChat ? "w-full" : "hidden") : "flex-1"
         )}
       >
         {selectedChat ? (
           <>
-            <div className="p-4 border-b border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">
-              <div className="flex items-center justify-between">
-                {isMobile && (
+            <div className="p-3 md:p-4 border-b border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">
+              <div className="flex items-center justify-between gap-2">
+                {(isMobile || window.innerWidth < 768) && (
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={handleBackToList}
-                    className="text-slate-300 hover:text-white hover:bg-slate-700/50"
+                    className="text-slate-300 hover:text-white hover:bg-slate-700/50 flex-shrink-0"
                   >
-                    <ArrowLeft className="h-5 w-5" />
+                    <ArrowLeft className="h-4 w-4 md:h-5 md:w-5" />
                   </Button>
                 )}
                 <button
                   type="button"
                   onClick={() => {
-                    if (isMobile) {
+                    if (isMobile || window.innerWidth < 768) {
                       setShowRightSidebarModal(true);
                     } else {
                       onToggleRightPanel?.();
                     }
                   }}
-                  className="flex items-center space-x-3 group"
+                  className="flex items-center space-x-2 md:space-x-3 group flex-1 min-w-0"
                 >
-                  <Avatar className="h-10 w-10">
+                  <Avatar className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0">
                     <AvatarImage
                       src={selectedChatObj?.avatar || "/placeholder.svg"}
                       alt={selectedChatObj?.name || "Chat"}
                     />
-                    <AvatarFallback className="bg-purple-600 text-white">
+                    <AvatarFallback className="bg-purple-600 text-white text-xs md:text-sm">
                       {(selectedChatObj?.name || "").split(" ").map((n) => n[0]).join("") || "C"}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
-                    <h3 className="text-white font-semibold">{selectedChatObj?.name || "Conversation"}</h3>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-white font-semibold text-sm md:text-base truncate">{selectedChatObj?.name || "Conversation"}</h3>
                     {(() => {
                       const status = onlineStatus[selectedChat || ''] || { isOnline: selectedChatObj?.online || false, lastSeen: selectedChatObj?.lastSeen };
                       return status.isOnline ? (
-                        <p className="text-sm text-green-400">Online</p>
+                        <p className="text-xs md:text-sm text-green-400">Online</p>
                       ) : (
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-slate-400 truncate">
                           {status.lastSeen ? formatLastSeen(status.lastSeen) : "Offline"}
                         </p>
                       );
                     })()}
                   </div>
                 </button>
-                <div className="flex items-center space-x-2">
-                  <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white hover:bg-slate-700/50">
-                    <Phone className="h-5 w-5" />
+                <div className="flex items-center space-x-1 md:space-x-2 flex-shrink-0">
+                  <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white hover:bg-slate-700/50 hidden sm:flex">
+                    <Phone className="h-4 w-4 md:h-5 md:w-5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white hover:bg-slate-700/50">
-                    <Video className="h-5 w-5" />
+                  <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white hover:bg-slate-700/50 hidden sm:flex">
+                    <Video className="h-4 w-4 md:h-5 md:w-5" />
                   </Button>
                 </div>
               </div>
             </div>
 
-            <ScrollArea ref={scrollAreaRef} className={cn("flex-1 scrollbar-custom overflow-y-auto", isMobile ? "max-h-[calc(100vh-12rem)]" : "max-h-[calc(100vh-8rem)]")}>
+            <ScrollArea ref={scrollAreaRef} className={cn("flex-1 scrollbar-custom overflow-y-auto", isMobile ? "max-h-[calc(100vh-12rem)]" : "max-h-[calc(100vh-8rem)] md:max-h-[calc(100vh-8rem)]")}>
               <div className="p-4 space-y-6 min-h-full">
                 {loading ? (
                   <div className="flex justify-center items-center h-full">
@@ -1225,11 +1259,11 @@ const upsertChatPreview = (
 
                           <div
                             className={cn(
-                              "max-w-xs lg:max-w-md flex flex-col",
+                              "max-w-[75%] sm:max-w-xs md:max-w-sm lg:max-w-md flex flex-col",
                               msg.isOwn
                                 ? "bg-purple-600 text-white rounded-tl-md rounded-bl-md rounded-tr-[1rem] rounded-br-none"
                                 : "bg-slate-700 text-white rounded-tr-md rounded-br-md rounded-tl-[1rem] rounded-bl-none",
-                              msg.mediaType?.startsWith('image/') ? "p-0" : "px-4 py-2"
+                              msg.mediaType?.startsWith('image/') ? "p-0" : "px-3 py-1.5 md:px-4 md:py-2"
                             )}
                           >
                             {msg.replyTo && (
@@ -1310,19 +1344,19 @@ const upsertChatPreview = (
             </ScrollArea>
 
             {showScrollDownButton && (
-              <div className="absolute bottom-24 right-4 z-50">
+              <div className="absolute bottom-20 md:bottom-24 right-4 z-50">
                 <Button
                   onClick={handleScrollDown}
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg animate-bounce"
+                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 md:p-3 shadow-lg animate-bounce"
                   size="icon"
                 >
-                  <ChevronDown className="h-5 w-5" />
+                  <ChevronDown className="h-4 w-4 md:h-5 md:w-5" />
                 </Button>
               </div>
             )}
 
             {/* Input Area */}
-            <div className="p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm sticky bottom-0 z-10">
+            <div className="p-3 md:p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm sticky bottom-0 z-10">
               {showDeleteConfirm && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50">
                   <div className="bg-slate-800 p-4 rounded-lg">
@@ -1413,10 +1447,10 @@ const upsertChatPreview = (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-slate-400 hover:text-white hover:bg-slate-700/50"
+                  className="text-slate-400 hover:text-white hover:bg-slate-700/50 flex-shrink-0"
                   onClick={handlePaperclipClick}
                 >
-                  <Paperclip className="h-5 w-5" />
+                  <Paperclip className="h-4 w-4 md:h-5 md:w-5" />
                 </Button>
                 <input
                   type="file"
@@ -1425,24 +1459,24 @@ const upsertChatPreview = (
                   className="hidden"
                   accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
                 />
-                <div className="flex-1 relative">
+                <div className="flex-1 relative min-w-0">
                   <Input
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="Type a message..."
-                    className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400 pr-12"
+                    className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400 pr-10 md:pr-12 text-sm md:text-base"
                     onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
                   />
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute right-1 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white"
+                    className="absolute right-1 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white hidden sm:flex"
                   >
-                    <Smile className="h-4 w-4" />
+                    <Smile className="h-3 w-3 md:h-4 md:w-4" />
                   </Button>
                 </div>
-                <Button onClick={handleSendMessage} className="bg-purple-600 hover:bg-purple-700 text-white">
-                  <Send className="h-4 w-4" />
+                <Button onClick={handleSendMessage} className="bg-purple-600 hover:bg-purple-700 text-white flex-shrink-0">
+                  <Send className="h-4 w-4 md:h-5 md:w-5" />
                 </Button>
               </div>
             </div>
@@ -1493,11 +1527,14 @@ const upsertChatPreview = (
             </button>
           )}
 
-          {contextMenu.message.isOwn && !contextMenu.message.isDeleted && (
+          {contextMenu.message && contextMenu.message.isOwn && !contextMenu.message.isDeleted && (
             <button
               onClick={() => {
-                setEditingMessage(contextMenu.message);
-                setMessage(contextMenu.message.content);
+                const msg = contextMenu.message;
+                if (msg) {
+                  setEditingMessage(msg);
+                  setMessage(msg.content);
+                }
                 setContextMenu({ ...contextMenu, visible: false });
               }}
               className="flex items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-slate-700 w-full text-left transition"
