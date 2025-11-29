@@ -59,9 +59,7 @@ interface ChatItem {
 interface ReplyTo {
   id: string;
   content?: string;
-  sender: {
-    username: string;
-  };
+  sender: { username: string };
   mediaUrl?: string;
   mediaType?: string;
   isDeleted?: boolean;
@@ -83,6 +81,9 @@ interface Message {
   replyTo?: ReplyTo;
 }
 
+const normalizeId = (value: string | number | null | undefined): string | null =>
+  value === undefined || value === null ? null : String(value);
+
 export function ChatSection(props: ChatSectionProps) {
   const {
     activeTab,
@@ -95,6 +96,7 @@ export function ChatSection(props: ChatSectionProps) {
     socket,
     isRightCollapsed = false,
   } = props;
+     
   const [message, setMessage] = useState("");
   const [chats, setChats] = useState<ChatItem[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -117,8 +119,8 @@ export function ChatSection(props: ChatSectionProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteForEveryone, setDeleteForEveryone] = useState(false);
   const [onlineStatus, setOnlineStatus] = useState<Record<string, { isOnline: boolean; lastSeen?: string }>>({});
+  const chatsRef = useRef<ChatItem[]>([]);
 
-  // Context Menu State
   const [contextMenu, setContextMenu] = useState<{
     message: Message | null;
     x: number;
@@ -126,6 +128,8 @@ export function ChatSection(props: ChatSectionProps) {
     visible: boolean;
   }>({ message: null, x: 0, y: 0, visible: false });
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const selectedChatKey = normalizeId(selectedChat);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -305,7 +309,16 @@ const upsertChatPreview = (
         const stored = typeof window !== 'undefined' ? sessionStorage.getItem('recentChats') : null;
         if (stored) {
           const parsed = JSON.parse(stored) as ChatItem[];
-          if (Array.isArray(parsed)) setChats(parsed);
+          if (Array.isArray(parsed)) {
+            setChats(
+              parsed
+                .map((chat) => ({
+                  ...chat,
+                  id: normalizeId(chat.id) ?? '',
+                }))
+                .filter((chat) => chat.id)
+            );
+          }
         }
 
         const res = await fetch('http://localhost:4000/v1/messages/conversations', {
@@ -318,16 +331,22 @@ const upsertChatPreview = (
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data?.conversations)) {
-            const mappedChats: ChatItem[] = data.conversations.map((conv: any) => ({
-              id: conv.participantId,
-              name: conv.participant?.username || 'User',
-              lastMessage: conv.lastMessage?.content || (conv.lastMessage?.mediaUrl ? 'Media' : ''),
-              timestamp: conv.lastMessage?.createdAt ? formatTimestamp(conv.lastMessage.createdAt) : '',
-              unread: Math.max(0, conv.unreadCount ?? conv.unread ?? 0),
-              avatar: conv.participant?.avatar,
-              online: onlineStatus[conv.participantId]?.isOnline ?? false,
-              lastSeen: onlineStatus[conv.participantId]?.lastSeen,
-            }));
+            const mappedChats: ChatItem[] = data.conversations
+              .map((conv: any) => {
+                const participantId = normalizeId(conv.participantId);
+                if (!participantId) return null;
+                return {
+                  id: participantId,
+                  name: conv.participant?.username || 'User',
+                  lastMessage: conv.lastMessage?.content || (conv.lastMessage?.mediaUrl ? 'Media' : ''),
+                  timestamp: conv.lastMessage?.createdAt ? formatTimestamp(conv.lastMessage.createdAt) : '',
+                  unread: Math.max(0, conv.unreadCount ?? conv.unread ?? 0),
+                  avatar: conv.participant?.avatar,
+                  online: onlineStatus[participantId]?.isOnline ?? false,
+                  lastSeen: onlineStatus[participantId]?.lastSeen,
+                };
+              })
+              .filter(Boolean) as ChatItem[];
             setChats(mappedChats);
           }
         }
@@ -345,20 +364,23 @@ const upsertChatPreview = (
     try {
       sessionStorage.setItem('recentChats', JSON.stringify(chats));
     } catch (e) {}
+    // Keep ref in sync
+    chatsRef.current = chats;
   }, [chats]);
 
   useEffect(() => {
     const onAddChatFromSearch = (e: Event) => {
       const custom = e as CustomEvent;
       const u = custom.detail || {};
-      if (!u?.id) return;
+      const userId = normalizeId(u?.id);
+      if (!userId) return;
       setChats((prev) => {
-        const exists = prev.some((c) => c.id === u.id);
+        const exists = prev.some((c) => c.id === userId);
         const next = exists
           ? prev
           : [
               {
-                id: u.id,
+                id: userId,
                 name: u.username || 'User',
                 lastMessage: u.lastMessage?.content || '',
                 timestamp: '',
@@ -370,7 +392,7 @@ const upsertChatPreview = (
             ];
         return next;
       });
-      onChatSelect(u.id);
+      onChatSelect(userId);
     };
     window.addEventListener('klyra:addChatFromSearch', onAddChatFromSearch as EventListener);
     return () => window.removeEventListener('klyra:addChatFromSearch', onAddChatFromSearch as EventListener);
@@ -379,26 +401,35 @@ const upsertChatPreview = (
   useEffect(() => {
     if (!socket || !currentUser?.id) return;
 
-    const handleUserOnline = (data: { userId: string }) => {
+    const handleUserOnline = (data: { userId: string | number }) => {
+      const userId = normalizeId(data.userId);
+      if (!userId) return;
       setOnlineStatus((prev) => ({
         ...prev,
-        [data.userId]: { isOnline: true },
+        [userId]: { isOnline: true },
       }));
-      upsertChatPreview(data.userId, { online: true });
+      upsertChatPreview(userId, { online: true });
     };
 
-    const handleUserOffline = (data: { userId: string; lastSeen: string }) => {
+    const handleUserOffline = (data: { userId: string | number; lastSeen: string }) => {
+      const userId = normalizeId(data.userId);
+      if (!userId) return;
       setOnlineStatus((prev) => ({
         ...prev,
-        [data.userId]: { isOnline: false, lastSeen: data.lastSeen },
+        [userId]: { isOnline: false, lastSeen: data.lastSeen },
       }));
-      upsertChatPreview(data.userId, { online: false, lastSeen: data.lastSeen });
+      upsertChatPreview(userId, { online: false, lastSeen: data.lastSeen });
     };
 
-    const handleOnlineUsers = (onlineUserIds: string[]) => {
+    const handleOnlineUsers = (onlineUserIds: (string | number)[]) => {
+      const normalizedOnlineIds = new Set(
+        onlineUserIds
+          .map((id) => normalizeId(id))
+          .filter((id): id is string => Boolean(id))
+      );
       setOnlineStatus((prev) => {
         const updated = { ...prev };
-        onlineUserIds.forEach((id: string) => {
+        normalizedOnlineIds.forEach((id) => {
           updated[id] = { isOnline: true };
         });
         return updated;
@@ -406,7 +437,7 @@ const upsertChatPreview = (
       // Update chats to reflect online status
       setChats((prev) =>
         prev.map((chat) =>
-          onlineUserIds.includes(chat.id) ? { ...chat, online: true } : chat
+          normalizedOnlineIds.has(chat.id) ? { ...chat, online: true } : chat
         )
       );
     };
@@ -432,7 +463,8 @@ const upsertChatPreview = (
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
-    if (!token || !selectedChat) {
+    const chatKey = normalizeId(selectedChat);
+    if (!token || !chatKey) {
       setLoading(false);
       return;
     }
@@ -440,14 +472,14 @@ const upsertChatPreview = (
     setLoading(true);
     setMessages([]);
 
-    if (messagesCache[selectedChat]) {
-      setMessages(messagesCache[selectedChat]);
+    if (messagesCache[chatKey]) {
+      setMessages(messagesCache[chatKey]);
     }
 
     const fetchMessages = async () => {
       try {
         const url = new URL('http://localhost:4000/v1/messages');
-        url.searchParams.set('recipientId', selectedChat);
+        url.searchParams.set('recipientId', chatKey);
         const res = await fetch(url.toString(), {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -484,12 +516,12 @@ const upsertChatPreview = (
             } : undefined,
           }));
 
-          setMessagesCache((prev) => ({ ...prev, [selectedChat!]: mapped }));
+          setMessagesCache((prev) => ({ ...prev, [chatKey]: mapped }));
           setMessages(mapped);
 
           const last = mapped[mapped.length - 1];
           if (last) {
-            upsertChatPreview(selectedChat, {
+            upsertChatPreview(chatKey, {
               name: data?.recipient?.username || selectedChatObj?.name,
               avatar: data?.recipient?.avatar || selectedChatObj?.avatar,
               lastMessage: last.content || (last.mediaUrl ? (last.mediaType?.startsWith('image/') ? 'Image' : 'File') : ''),
@@ -502,81 +534,177 @@ const upsertChatPreview = (
           }
         } else {
           setMessages([]);
-          setMessagesCache((prev) => ({ ...prev, [selectedChat]: [] }));
+          setMessagesCache((prev) => ({ ...prev, [chatKey]: [] }));
         }
       } catch (e) {
         console.error('Failed to load messages', e);
         setMessages([]);
-        setMessagesCache((prev) => ({ ...prev, [selectedChat]: [] }));
+        setMessagesCache((prev) => ({ ...prev, [chatKey]: [] }));
       } finally {
         setLoading(false);
       }
     };
 
     fetchMessages();
+
+    // Polling fallback: Check for new messages every 3 seconds if socket might not be working
+    const pollInterval = setInterval(async () => {
+      if (!chatKey || !token) return;
+      
+      try {
+        const url = new URL('http://localhost:4000/v1/messages');
+        url.searchParams.set('recipientId', chatKey);
+        const res = await fetch(url.toString(), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          credentials: 'include',
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data?.messages)) {
+            const mapped: Message[] = data.messages.map((m: any) => ({
+              id: m.id,
+              sender: m.senderId === currentUser.id ? 'You' : m.sender?.username || 'User',
+              content: m.content || '',
+              mediaUrl: m.mediaUrl || undefined,
+              mediaType: m.mediaType || undefined,
+              timestamp: formatTimestamp(m.createdAt),
+              createdAt: m.createdAt,
+              isOwn: m.senderId === currentUser?.id,
+              isRead: m.isRead,
+              status: m.senderId === currentUser.id ? (m.isRead ? 'read' as const : 'sent' as const) : undefined,
+              isEdited: m.isEdited,
+              isDeleted: m.isDeleted,
+              replyTo: m.replyTo ? {
+                id: m.replyTo.id,
+                content: m.replyTo.content,
+                sender: { username: m.replyTo.sender?.username || 'User' },
+                mediaUrl: m.replyTo.mediaUrl,
+                mediaType: m.replyTo.mediaType,
+                isDeleted: m.replyTo.isDeleted,
+              } : undefined,
+            }));
+
+            // Only update if there are new messages
+            const currentMessages = messagesCache[chatKey] || [];
+            const latestMessageId = currentMessages[currentMessages.length - 1]?.id;
+            const newMessages = mapped.filter(m => !currentMessages.some(cm => cm.id === m.id));
+            
+            if (newMessages.length > 0) {
+              console.log('🔄 [POLLING] Found new messages:', newMessages.length);
+              setMessagesCache((prev) => ({ ...prev, [chatKey]: mapped }));
+              setMessages(mapped);
+            }
+          }
+        }
+      } catch (e) {
+        // Silently fail polling
+      }
+    }, 3000); // Poll every 3 seconds
+
+    return () => clearInterval(pollInterval);
   }, [selectedChat, currentUser?.id]);
 
   useEffect(() => {
-    if (!selectedChat) {
+    if (!selectedChatKey) {
       setLoading(false);
       setMessages([]);
       return;
     }
 
-    upsertChatPreview(selectedChat, { resetUnread: true, preserveOrder: true });
+    upsertChatPreview(selectedChatKey, { resetUnread: true, preserveOrder: true });
 
     setMessages((prev) =>
       prev.map((m) => (m.isOwn ? { ...m, status: m.status === 'read' ? 'read' : m.status } : { ...m, isRead: true }))
     );
     setMessagesCache((prev) => ({
       ...prev,
-      [selectedChat]: (prev[selectedChat] || []).map((m) =>
+      [selectedChatKey]: (prev[selectedChatKey] || []).map((m) =>
         m.isOwn ? { ...m, status: m.status === 'read' ? 'read' : m.status } : { ...m, isRead: true }
       ),
     }));
-  }, [selectedChat]);
+  }, [selectedChat, selectedChatKey]);
 
   useEffect(() => {
-    if (!socket || !currentUser?.id) return;
+    if (!socket || !currentUser?.id) {
+      console.log('⚠️ [FRONTEND] Socket handler not initialized:', { 
+        hasSocket: !!socket, 
+        hasCurrentUser: !!currentUser?.id,
+        socketId: socket?.id,
+        socketConnected: socket?.connected
+      });
+      return;
+    }
 
-    const toKey = (value: string | number | null | undefined) =>
-      value !== undefined && value !== null ? String(value) : null;
+    console.log('🎧 [FRONTEND] Registering socket listeners for user:', currentUser.id);
+    console.log('🔌 [FRONTEND] Socket status:', {
+      connected: socket.connected,
+      id: socket.id,
+      disconnected: socket.disconnected
+    });
 
     const handleNewMessage = (newMessage: any) => {
-      // Determine if this message is for the current user (as recipient or sender)
-      const currentUserId = toKey(currentUser.id);
-      const senderId = toKey(newMessage.senderId);
-      const recipientId = toKey(newMessage.recipientId);
-      const selectedChatId = toKey(selectedChat);
+      console.log('🟢 [FRONTEND] handleNewMessage called:', {
+        messageId: newMessage.id,
+        senderId: newMessage.senderId,
+        recipientId: newMessage.recipientId,
+        currentUserId: currentUser.id,
+        selectedChat: selectedChat,
+        content: newMessage.content?.substring(0, 50)
+      });
 
-      if (!currentUserId) return;
+      // Use the EXACT same logic as the working version
+      const isForThisChat =
+        (!!newMessage.recipientId && String(newMessage.recipientId) === String(currentUser.id) && String(newMessage.senderId) === String(selectedChat)) ||
+        (!!newMessage.recipientId && String(newMessage.senderId) === String(currentUser.id) && String(newMessage.recipientId) === String(selectedChat));
 
-      const isForCurrentUser =
-        recipientId === currentUserId ||
-        senderId === currentUserId;
-      
-      if (!isForCurrentUser) return;
+      console.log('🔍 [FRONTEND] Chat check:', {
+        isForThisChat,
+        selectedChat,
+        condition1: !!newMessage.recipientId && String(newMessage.recipientId) === String(currentUser.id) && String(newMessage.senderId) === String(selectedChat),
+        condition2: !!newMessage.recipientId && String(newMessage.senderId) === String(currentUser.id) && String(newMessage.recipientId) === String(selectedChat),
+        recipientIdMatch: String(newMessage.recipientId) === String(currentUser.id),
+        senderIdMatch: String(newMessage.senderId) === String(selectedChat),
+        senderIdMatch2: String(newMessage.senderId) === String(currentUser.id),
+        recipientIdMatch2: String(newMessage.recipientId) === String(selectedChat)
+      });
 
-      // Determine the chat partner ID
-      const chatPartnerId = senderId === currentUserId
-        ? recipientId
-        : senderId;
+      if (!selectedChat || !isForThisChat) {
+        console.log('⚠️ [FRONTEND] Message NOT for selected chat, updating sidebar only');
+        // Still update sidebar for other chats
+        const currentUserId = String(currentUser.id);
+        const senderId = String(newMessage.senderId || '');
+        const recipientId = String(newMessage.recipientId || '');
+        
+        if (senderId === currentUserId || recipientId === currentUserId) {
+          const chatPartnerId = senderId === currentUserId ? recipientId : senderId;
+          const chatPartner = chatsRef.current.find(c => String(c.id) === chatPartnerId);
+          const lastMessageText = newMessage.content ||
+            (newMessage.mediaUrl ? (newMessage.mediaType?.startsWith('image/') ? 'Image' : 'File') : '');
+          
+          upsertChatPreview(chatPartnerId, {
+            name: chatPartner?.name,
+            avatar: chatPartner?.avatar,
+            lastMessage: lastMessageText,
+            timestamp: formatTimestamp(newMessage.createdAt),
+            incrementUnread: senderId !== currentUserId,
+            preserveOrder: true,
+            isFromCurrentUser: senderId === currentUserId,
+            messageStatus: senderId === currentUserId
+              ? (newMessage.isRead ? 'read' : 'sent')
+              : undefined,
+          });
+        }
+        return;
+      }
 
-      if (!chatPartnerId) return;
-
-      // Check if this message is for the currently selected chat
-      const isForSelectedChat = selectedChatId === chatPartnerId;
-
-      // Get sender username from chat list or use fallback
-      const chatPartner = chats.find(c => String(c.id) === chatPartnerId);
-      const senderUsername = senderId === currentUserId
-        ? 'You' 
-        : (chatPartner?.name || newMessage.sender?.username || 'Unknown');
-
+      // Message is for the currently selected chat - update immediately
       const newMessageObj: Message = {
         id: newMessage.id,
-        sender: senderUsername,
-        content: newMessage.content || '',
+        sender: newMessage.senderId === currentUser.id ? 'You' : newMessage.sender?.username || newMessage.sender?.fullname || 'Unknown',
+        content: newMessage.content || newMessage.mediaUrl || '',
         mediaUrl: newMessage.mediaUrl || undefined,
         mediaType: newMessage.mediaType || undefined,
         timestamp: formatTimestamp(newMessage.createdAt),
@@ -596,57 +724,64 @@ const upsertChatPreview = (
         } : undefined,
       };
 
-      // Always update the cache for this chat
+      // Update cache
+      const chatKey = String(selectedChat);
       setMessagesCache((prev) => {
-        const existing = prev[chatPartnerId] || [];
+        const existing = prev[chatKey] || [];
         const existingIndex = existing.findIndex((m) => m.id === newMessageObj.id);
         if (existingIndex !== -1) {
           const updated = [...existing];
           updated[existingIndex] = { ...updated[existingIndex], ...newMessageObj };
-          return { ...prev, [chatPartnerId]: updated };
-        } else {
-          return { ...prev, [chatPartnerId]: [...existing, newMessageObj] };
+          return { ...prev, [chatKey]: updated };
         }
+        return { ...prev, [chatKey]: [...existing, newMessageObj] };
       });
 
-      // Only update the displayed messages if this is the selected chat
-      if (isForSelectedChat) {
-        setMessages((prev) => {
-          const existingIndex = prev.findIndex((m) => m.id === newMessageObj.id);
-          if (existingIndex !== -1) {
-            // Update existing message (e.g., status change)
-            const updated = [...prev];
-            updated[existingIndex] = { ...updated[existingIndex], ...newMessageObj };
-            return updated;
-          } else {
-            // Add new message
-            return [...prev, newMessageObj];
-          }
-        });
-      }
+      // IMMEDIATELY update the displayed messages - this is the critical fix
+      console.log('✅ [FRONTEND] Message IS for selected chat, updating messages state');
+      setMessages((prev) => {
+        const existingIndex = prev.findIndex((m) => m.id === newMessageObj.id);
+        if (existingIndex !== -1) {
+          console.log('🔄 [FRONTEND] Updating existing message in state');
+          const updated = [...prev];
+          updated[existingIndex] = { ...updated[existingIndex], ...newMessageObj };
+          return updated;
+        }
+        console.log('➕ [FRONTEND] Adding new message to state. Previous count:', prev.length);
+        const newState = [...prev, newMessageObj];
+        console.log('📊 [FRONTEND] New messages count:', newState.length);
+        return newState;
+      });
 
-      // Update chat preview
-      const lastMessageText = newMessage.content || 
+      // Update sidebar preview
+      const selectedChatObj = chatsRef.current.find(c => String(c.id) === String(selectedChat));
+      const lastMessageText = newMessage.content ||
         (newMessage.mediaUrl ? (newMessage.mediaType?.startsWith('image/') ? 'Image' : 'File') : '');
 
-      upsertChatPreview(chatPartnerId, {
-        name: chatPartner?.name,
-        avatar: chatPartner?.avatar,
+      upsertChatPreview(String(selectedChat), {
+        name: selectedChatObj?.name,
+        avatar: selectedChatObj?.avatar,
         lastMessage: lastMessageText,
         timestamp: formatTimestamp(newMessage.createdAt),
-        incrementUnread: senderId !== currentUserId && !isForSelectedChat,
-        resetUnread: isForSelectedChat,
+        resetUnread: true,
         preserveOrder: true,
-        isFromCurrentUser: senderId === currentUserId,
-        messageStatus: senderId === currentUserId
-          ? (newMessage.isRead ? 'read' : 'sent') 
+        isFromCurrentUser: newMessage.senderId === currentUser.id,
+        messageStatus: newMessage.senderId === currentUser.id
+          ? (newMessage.isRead ? 'read' : 'sent')
           : undefined,
       });
+
+      // Auto-scroll to bottom
+      setTimeout(() => {
+        if (lastMessageRef.current) {
+          lastMessageRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }, 100);
     };
 
     const handleMessageUpdated = (updatedMessage: any) => {
-      if (!selectedChat) return;
-      const chatId = selectedChat!;
+      if (!selectedChatKey) return;
+      const chatId = selectedChatKey;
       setMessages((prev) =>
         prev.map((msg: Message) => (msg.id === updatedMessage.id ? { ...msg, content: updatedMessage.content || msg.content, isEdited: updatedMessage.isEdited } : msg))
       );
@@ -664,12 +799,12 @@ const upsertChatPreview = (
           return prev.filter((msg) => msg.id !== messageId);
         }
       });
-      if (selectedChat) {
+      if (selectedChatKey) {
         setMessagesCache((prev) => ({
           ...prev,
-          [selectedChat]: deleteForEveryone 
-            ? (prev[selectedChat] || []).map((msg: Message) => msg.id === messageId ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg)
-            : (prev[selectedChat] || []).filter((msg: Message) => msg.id !== messageId)
+          [selectedChatKey]: deleteForEveryone 
+            ? (prev[selectedChatKey] || []).map((msg: Message) => msg.id === messageId ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg)
+            : (prev[selectedChatKey] || []).filter((msg: Message) => msg.id !== messageId)
         }));
       }
     };
@@ -681,17 +816,17 @@ const upsertChatPreview = (
         )
       );
 
-      if (selectedChat) {
+      if (selectedChatKey) {
         setMessagesCache((prev) => ({
           ...prev,
-          [selectedChat]: prev[selectedChat]?.map((msg: Message) =>
+          [selectedChatKey]: prev[selectedChatKey]?.map((msg: Message) =>
             msg.id === data.messageId ? { ...msg, isRead: data.isRead, status: data.isRead ? 'read' as const : 'sent' as const } : msg
           ) || []
         }));
       }
 
       const chatIdFromCache = findChatIdByMessageId(data.messageId);
-      const chatIdToUpdate = chatIdFromCache ?? selectedChat ?? null;
+      const chatIdToUpdate = chatIdFromCache ?? selectedChatKey ?? null;
       if (chatIdToUpdate) {
         upsertChatPreview(chatIdToUpdate, {
           resetUnread: false,
@@ -706,26 +841,33 @@ const upsertChatPreview = (
     socket.on('messageDeleted', handleMessageDeleted);
     socket.on('messageRead', handleMessageRead);
 
+    console.log('✅ [FRONTEND] Socket listeners registered successfully');
+
     return () => {
+      console.log('🧹 [FRONTEND] Cleaning up socket listeners');
       socket.off('newMessage', handleNewMessage);
       socket.off('messageUpdated', handleMessageUpdated);
       socket.off('messageDeleted', handleMessageDeleted);
       socket.off('messageRead', handleMessageRead);
     };
-  }, [socket, currentUser?.id, selectedChat, messagesCache, chats]);
+  }, [socket, currentUser?.id, selectedChat]);
 
+  // Only sync from cache when switching chats, NOT when cache updates
   useEffect(() => {
-    if (!selectedChat) return;
-    const cachedMessages = messagesCache[selectedChat];
+    if (!selectedChatKey) {
+      setMessages([]);
+      return;
+    }
+    const cachedMessages = messagesCache[selectedChatKey];
     if (cachedMessages) {
       setMessages(cachedMessages);
     } else {
       setMessages([]);
     }
-  }, [selectedChat, messagesCache]);
+  }, [selectedChat, selectedChatKey]); // Removed messagesCache to prevent overwriting real-time updates
 
   useEffect(() => {
-    if (!selectedChat) return;
+    if (!selectedChatKey) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -757,7 +899,7 @@ const upsertChatPreview = (
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
               },
-              body: JSON.stringify({ recipientId: selectedChat }),
+              body: JSON.stringify({ recipientId: selectedChatKey }),
             }).then(() => {
               setMessages(prev => prev.map(msg => {
                 if (msg.isOwn && msg.status === 'sent') {
@@ -768,7 +910,7 @@ const upsertChatPreview = (
 
               setMessagesCache(prev => ({
                 ...prev,
-                [selectedChat]: prev[selectedChat]?.map(msg => {
+                [selectedChatKey]: prev[selectedChatKey]?.map(msg => {
                   if (msg.isOwn && msg.status === 'sent') {
                     return { ...msg, status: 'read' as const };
                   }
@@ -776,7 +918,7 @@ const upsertChatPreview = (
                 }) || []
               }));
 
-              upsertChatPreview(selectedChat, {
+              upsertChatPreview(selectedChatKey, {
                 resetUnread: true,
                 preserveOrder: true,
                 messageStatus: 'read',
@@ -794,7 +936,7 @@ const upsertChatPreview = (
     return () => {
       observer.disconnect();
     };
-  }, [selectedChat, messages, readMessages]);
+  }, [selectedChatKey, messages, readMessages]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
@@ -835,7 +977,8 @@ const upsertChatPreview = (
   }, [selectedChat, messages]);
 
   const handleSendMessage = async () => {
-    if ((!message.trim() && !selectedFile) || !selectedChat) return;
+    const chatKey = selectedChatKey;
+    if ((!message.trim() && !selectedFile) || !chatKey) return;
 
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
     if (!token) return;
@@ -844,7 +987,7 @@ const upsertChatPreview = (
       const formData = new FormData();
       if (!editingMessage) {
         formData.append('content', message.trim());
-        formData.append('recipientId', selectedChat);
+        formData.append('recipientId', chatKey);
         if (replyingTo) {
           formData.append('replyToId', replyingTo.id);
         }
@@ -890,14 +1033,14 @@ const upsertChatPreview = (
           setMessages((prev) => [...prev, newMessageObj]);
           setMessagesCache((prev) => ({
             ...prev,
-            [selectedChat]: [...(prev[selectedChat] || []), newMessageObj]
+            [chatKey]: [...(prev[chatKey] || []), newMessageObj]
           }));
           setMessage('');
           setSelectedFile(null);
           if (fileInputRef.current) fileInputRef.current.value = '';
           setReplyingTo(null);
 
-          upsertChatPreview(selectedChat, {
+          upsertChatPreview(chatKey, {
             name: selectedChatObj?.name,
             avatar: selectedChatObj?.avatar,
             lastMessage: m.content || (m.mediaUrl ? (m.mediaType?.startsWith('image/') ? 'Image' : 'File') : 'Media'),
@@ -926,7 +1069,7 @@ const upsertChatPreview = (
           );
           setMessagesCache((prev) => ({
             ...prev,
-            [selectedChat]: (prev[selectedChat] || []).map((msg) => (msg.id === updated.id ? { ...msg, content: updated.content, isEdited: true } : msg))
+            [chatKey]: (prev[chatKey] || []).map((msg) => (msg.id === updated.id ? { ...msg, content: updated.content, isEdited: true } : msg))
           }));
           setMessage('');
           setEditingMessage(null);
@@ -949,7 +1092,8 @@ const upsertChatPreview = (
   };
 
   const handleDeleteConfirm = async () => {
-    if (!contextMenu.message || !selectedChat) return;
+    const chatKey = selectedChatKey;
+    if (!contextMenu.message || !chatKey) return;
 
     const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
     if (!token) return;
@@ -974,7 +1118,7 @@ const upsertChatPreview = (
           );
           setMessagesCache((prev) => ({
             ...prev,
-            [selectedChat]: (prev[selectedChat] || []).map((msg) =>
+            [chatKey]: (prev[chatKey] || []).map((msg) =>
               msg.id === contextMenu.message!.id ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg
             )
           }));
@@ -982,7 +1126,7 @@ const upsertChatPreview = (
           setMessages((prev) => prev.filter((msg) => msg.id !== contextMenu.message!.id));
           setMessagesCache((prev) => ({
             ...prev,
-            [selectedChat]: (prev[selectedChat] || []).filter((msg) => msg.id !== contextMenu.message!.id)
+            [chatKey]: (prev[chatKey] || []).filter((msg) => msg.id !== contextMenu.message!.id)
           }));
         }
         setShowDeleteConfirm(false);
@@ -1183,7 +1327,7 @@ const upsertChatPreview = (
                   <div className="min-w-0 flex-1">
                     <h3 className="text-white font-semibold text-sm md:text-base truncate">{selectedChatObj?.name || "Conversation"}</h3>
                     {(() => {
-                      const status = onlineStatus[selectedChat || ''] || { isOnline: selectedChatObj?.online || false, lastSeen: selectedChatObj?.lastSeen };
+                      const status = onlineStatus[selectedChatKey || ''] || { isOnline: selectedChatObj?.online || false, lastSeen: selectedChatObj?.lastSeen };
                       return status.isOnline ? (
                         <p className="text-xs md:text-sm text-green-400">Online</p>
                       ) : (
