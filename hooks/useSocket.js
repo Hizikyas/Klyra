@@ -27,23 +27,19 @@ export const useSocket = (userId, groupId) => {
     setSocket(newSocket);
 
     newSocket.on("connect", () => {
-      console.log('✅ [SOCKET] Connected to server. Socket ID:', newSocket.id);
       setIsConnected(true);
 
-      // Join user room
+      
       if (userId) {
-        console.log('🚪 [SOCKET] Joining user room:', userId);
         newSocket.emit("joinUser", userId);
       }
-      // Join group room if applicable
+      
       if (groupId) {
-        console.log('🚪 [SOCKET] Joining group room:', groupId);
         newSocket.emit("joinGroup", groupId);
       }
     });
 
     newSocket.on("disconnect", () => {
-      console.log('❌ [SOCKET] Disconnected from server');
       setIsConnected(false);
     });
 
