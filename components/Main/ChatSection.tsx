@@ -1313,7 +1313,7 @@ const upsertChatPreview = (
                       onToggleRightPanel?.();
                     }
                   }}
-                  className="flex items-center space-x-2 md:space-x-3 group flex-1 min-w-0"
+                  className="flex items-center space-x-2 md:space-x-3 group text-left min-w-0"
                 >
                   <Avatar className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0">
                     <AvatarImage
