@@ -1501,32 +1501,7 @@ const upsertChatPreview = (
 
             {/* Input Area */}
             <div className="p-3 md:p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm sticky bottom-0 z-10">
-              {showDeleteConfirm && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50">
-                  <div className="bg-slate-800 p-4 rounded-lg">
-                    <h3 className="text-white mb-2">Delete message?</h3>
-                    {contextMenu.message?.isOwn && (
-                      <label className="flex items-center text-slate-300">
-                        <input
-                          type="checkbox"
-                          checked={deleteForEveryone}
-                          onChange={(e) => setDeleteForEveryone(e.target.checked)}
-                          className="mr-2"
-                        />
-                        Delete for {selectedChatObj?.name} too
-                      </label>
-                    )}
-                    <div className="flex justify-end mt-4 space-x-2">
-                      <Button variant="ghost" onClick={() => { setShowDeleteConfirm(false); setDeleteForEveryone(false); }}>
-                        Cancel
-                      </Button>
-                      <Button variant="destructive" onClick={handleDeleteConfirm}>
-                        Delete
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
+
 
               {(replyingTo || editingMessage) && (
                 <div className="mb-2 p-2 bg-slate-700/30 rounded-lg flex justify-between items-center">
@@ -1639,6 +1614,33 @@ const upsertChatPreview = (
           </div>
         )}
       </div>
+
+      {showDeleteConfirm && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50">
+          <div className="bg-slate-800 p-4 rounded-lg">
+            <h3 className="text-white mb-2">Delete message?</h3>
+            {contextMenu.message?.isOwn && (
+              <label className="flex items-center text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={deleteForEveryone}
+                  onChange={(e) => setDeleteForEveryone(e.target.checked)}
+                  className="mr-2"
+                />
+                Delete for {selectedChatObj?.name} too
+              </label>
+            )}
+            <div className="flex justify-end mt-4 space-x-2">
+              <Button variant="ghost" onClick={() => { setShowDeleteConfirm(false); setDeleteForEveryone(false); }}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteConfirm}>
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Telegram-Style Context Menu */}
       {contextMenu.visible && contextMenu.message && (
