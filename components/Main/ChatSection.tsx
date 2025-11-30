@@ -793,18 +793,14 @@ const upsertChatPreview = (
 
     const handleMessageDeleted = ({ messageId, deleteForEveryone }: { messageId: string, deleteForEveryone: boolean }) => {
       setMessages((prev) => {
-        if (deleteForEveryone) {
-          return prev.map((msg) => msg.id === messageId ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg);
-        } else {
-          return prev.filter((msg) => msg.id !== messageId);
-        }
+        // Always filter out the deleted message completely
+        return prev.filter((msg) => msg.id !== messageId);
       });
+      
       if (selectedChatKey) {
         setMessagesCache((prev) => ({
           ...prev,
-          [selectedChatKey]: deleteForEveryone 
-            ? (prev[selectedChatKey] || []).map((msg: Message) => msg.id === messageId ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg)
-            : (prev[selectedChatKey] || []).filter((msg: Message) => msg.id !== messageId)
+          [selectedChatKey]: (prev[selectedChatKey] || []).filter((msg: Message) => msg.id !== messageId)
         }));
       }
     };
@@ -1110,25 +1106,13 @@ const upsertChatPreview = (
       });
 
       if (res.ok) {
-        if (deleteForEveryone) {
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === contextMenu.message!.id ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg
-            )
-          );
-          setMessagesCache((prev) => ({
-            ...prev,
-            [chatKey]: (prev[chatKey] || []).map((msg) =>
-              msg.id === contextMenu.message!.id ? { ...msg, isDeleted: true, content: '', mediaUrl: undefined, mediaType: undefined } : msg
-            )
-          }));
-        } else {
-          setMessages((prev) => prev.filter((msg) => msg.id !== contextMenu.message!.id));
-          setMessagesCache((prev) => ({
-            ...prev,
-            [chatKey]: (prev[chatKey] || []).filter((msg) => msg.id !== contextMenu.message!.id)
-          }));
-        }
+        // Always completely remove the message from both state and cache
+        setMessages((prev) => prev.filter((msg) => msg.id !== contextMenu.message!.id));
+        setMessagesCache((prev) => ({
+          ...prev,
+          [chatKey]: (prev[chatKey] || []).filter((msg) => msg.id !== contextMenu.message!.id)
+        }));
+        
         setShowDeleteConfirm(false);
         setDeleteForEveryone(false);
         setContextMenu({ message: null, x: 0, y: 0, visible: false });
@@ -1375,111 +1359,109 @@ const upsertChatPreview = (
                           <span className="text-sm font-medium">{group.date}</span>
                         </div>
                       )}
-                      {group.messages.map((msg) => (
+                  {group.messages.map((msg) => {
+                    if (msg.isDeleted) return null;
+
+                    return (
+                      <div
+                        key={msg.id}
+                        className={cn("flex items-end gap-2 my-2", msg.isOwn ? "justify-end" : "justify-start")}
+                        data-message-id={msg.id}
+                        data-is-own={msg.isOwn.toString()}
+                        onContextMenu={(e) => openContextMenu(msg, e)}
+                        onTouchStart={(e) => {
+                          longPressTimer.current = setTimeout(() => openContextMenu(msg, e), 500);
+                        }}
+                        onTouchEnd={() => {
+                          if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                        }}
+                        onTouchMove={() => {
+                          if (longPressTimer.current) clearTimeout(longPressTimer.current);
+                        }}
+                      >
+                        {!msg.isOwn && (
+                          <Avatar className="h-6 w-6 mb-0">
+                            <AvatarImage src={selectedChatObj?.avatar} />
+                            <AvatarFallback className="bg-purple-600 text-white text-xs">
+                              {(selectedChatObj?.name || "F").charAt(0)}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+
                         <div
-                          key={msg.id}
-                          className={cn("flex items-end gap-2 my-2", msg.isOwn ? "justify-end" : "justify-start")}
-                          data-message-id={msg.id}
-                          data-is-own={msg.isOwn.toString()}
-                          onContextMenu={(e) => openContextMenu(msg, e)}
-                          onTouchStart={(e) => {
-                            longPressTimer.current = setTimeout(() => openContextMenu(msg, e), 500);
-                          }}
-                          onTouchEnd={() => {
-                            if (longPressTimer.current) clearTimeout(longPressTimer.current);
-                          }}
-                          onTouchMove={() => {
-                            if (longPressTimer.current) clearTimeout(longPressTimer.current);
-                          }}
+                          className={cn(
+                            "max-w-[75%] sm:max-w-xs md:max-w-sm lg:max-w-md flex flex-col",
+                            msg.isOwn
+                              ? "bg-purple-600 text-white rounded-tl-md rounded-bl-md rounded-tr-[1rem] rounded-br-none"
+                              : "bg-slate-700 text-white rounded-tr-md rounded-br-md rounded-tl-[1rem] rounded-bl-none",
+                            msg.mediaType?.startsWith('image/') ? "p-0" : "px-3 py-1.5 md:px-4 md:py-2"
+                          )}
                         >
-                          {!msg.isOwn && (
-                            <Avatar className="h-6 w-6 mb-0">
-                              <AvatarImage src={selectedChatObj?.avatar} />
-                              <AvatarFallback className="bg-purple-600 text-white text-xs">
-                                {(selectedChatObj?.name || "F").charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
+                          {msg.replyTo && !msg.replyTo.isDeleted && (
+                            <div className="border-l-4 border-purple-500 pl-2 mb-2 bg-slate-700/20 p-2 rounded text-xs text-slate-300">
+                              <p className="font-medium text-slate-200">{msg.replyTo.sender.username}</p>
+                              <p className="truncate">
+                                {msg.replyTo.content || (msg.replyTo.mediaType?.startsWith('image/') ? "Image" : "File")}
+                              </p>
+                            </div>
                           )}
 
-                          <div
-                            className={cn(
-                              "max-w-[75%] sm:max-w-xs md:max-w-sm lg:max-w-md flex flex-col",
-                              msg.isOwn
-                                ? "bg-purple-600 text-white rounded-tl-md rounded-bl-md rounded-tr-[1rem] rounded-br-none"
-                                : "bg-slate-700 text-white rounded-tr-md rounded-br-md rounded-tl-[1rem] rounded-bl-none",
-                              msg.mediaType?.startsWith('image/') ? "p-0" : "px-3 py-1.5 md:px-4 md:py-2"
-                            )}
-                          >
-                            {msg.replyTo && (
-                              <div className="border-l-4 border-purple-500 pl-2 mb-2 bg-slate-700/20 p-2 rounded text-xs text-slate-300">
-                                <p className="font-medium text-slate-200">{msg.replyTo.sender.username}</p>
-                                <p className="truncate">
-                                  {msg.replyTo.isDeleted ? "This message was deleted" : msg.replyTo.content || (msg.replyTo.mediaType?.startsWith('image/') ? "Image" : "File")}
-                                </p>
+                          {msg.mediaUrl && msg.mediaType?.startsWith('image/') ? (
+                            <div className="relative overflow-hidden">
+                              <img
+                                src={msg.mediaUrl}
+                                alt="sent"
+                                className="w-full h-64 object-cover cursor-pointer"
+                                onClick={() => handleImageClick(msg.mediaUrl!)}
+                              />
+                              <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm">
+                                <span className="text-xs text-white">{msg.timestamp}</span>
+                                {msg.isOwn && (
+                                  msg.status === 'read' ? <IoCheckmarkDone className="w-4 h-4 text-blue-300" /> : <Check className="w-4 h-4 text-purple-200" />
+                                )}
                               </div>
-                            )}
-
-                            {msg.isDeleted ? (
-                              <p className="italic text-sm text-slate-400">This message was deleted</p>
-                            ) : (
-                              <>
-                                {msg.mediaUrl && msg.mediaType?.startsWith('image/') ? (
-                                  <div className="relative overflow-hidden">
-                                    <img
-                                      src={msg.mediaUrl}
-                                      alt="sent"
-                                      className="w-full h-64 object-cover cursor-pointer"
-                                      onClick={() => handleImageClick(msg.mediaUrl!)}
-                                    />
-                                    <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/40 px-2 py-1 rounded-md backdrop-blur-sm">
-                                      <span className="text-xs text-white">{msg.timestamp}</span>
-                                      {msg.isOwn && (
-                                        msg.status === 'read' ? <IoCheckmarkDone className="w-4 h-4 text-blue-300" /> : <Check className="w-4 h-4 text-purple-200" />
-                                      )}
+                            </div>
+                          ) : (
+                            <>
+                              {msg.mediaUrl && (
+                                <div className="mb-2">
+                                  <div className="flex items-center gap-3 bg-slate-700/30 rounded-lg border border-slate-600/50 p-2">
+                                    <div
+                                      className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center cursor-pointer"
+                                      onClick={() => window.open(msg.mediaUrl!, "_blank")}
+                                    >
+                                      {getFileIcon(msg.mediaType)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm text-white truncate">
+                                        {(() => {
+                                          const name = msg.mediaUrl?.split("/").pop() || "File";
+                                          try { return decodeURIComponent(name); } catch { return name; }
+                                        })()}
+                                      </p>
+                                      <p className="text-xs text-slate-400">Click to download</p>
                                     </div>
                                   </div>
-                                ) : (
-                                  <>
-                                    {msg.mediaUrl && (
-                                      <div className="mb-2">
-                                        <div className="flex items-center gap-3 bg-slate-700/30 rounded-lg border border-slate-600/50 p-2">
-                                          <div
-                                            className="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center cursor-pointer"
-                                            onClick={() => window.open(msg.mediaUrl!, "_blank")}
-                                          >
-                                            {getFileIcon(msg.mediaType)}
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <p className="text-sm text-white truncate">
-                                              {(() => {
-                                                const name = msg.mediaUrl?.split("/").pop() || "File";
-                                                try { return decodeURIComponent(name); } catch { return name; }
-                                              })()}
-                                            </p>
-                                            <p className="text-xs text-slate-400">Click to download</p>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {msg.content && <p className="text-sm">{msg.content}</p>}
-                                    <div className="flex items-center justify-end mt-1 gap-1">
-                                      {msg.isEdited && <span className="text-[0.6rem] text-slate-400">edited</span>}
-                                      <span className={cn("text-[0.7rem]", msg.isOwn ? "text-purple-200" : "text-slate-400")}>
-                                        {msg.timestamp}
-                                      </span>
-                                      {msg.isOwn && (
-                                        msg.status === 'read' ? <IoCheckmarkDone className="w-5 h-4 text-blue-400" /> : <Check className="w-5 h-4 text-purple-200" />
-                                      )}
-                                    </div>
-                                  </>
+                                </div>
+                              )}
+                              {msg.content && <p className="text-sm">{msg.content}</p>}
+                              <div className="flex items-center justify-end mt-1 gap-1">
+                                {msg.isEdited && <span className="text-[0.6rem] text-slate-400">edited</span>}
+                                <span className={cn("text-[0.7rem]", msg.isOwn ? "text-purple-200" : "text-slate-400")}>
+                                  {msg.timestamp}
+                                </span>
+                                {msg.isOwn && (
+                                  msg.status === 'read' ? <IoCheckmarkDone className="w-5 h-4 text-blue-400" /> : <Check className="w-5 h-4 text-purple-200" />
                                 )}
-                              </>
-                            )}
-                          </div>
-
-                          {!msg.isOwn && <div className="w-8 flex-shrink-0" />}
+                              </div>
+                            </>
+                          )}
                         </div>
-                      ))}
+
+                        {!msg.isOwn && <div className="w-8 flex-shrink-0" />}
+                      </div>
+                    );
+                  })}
                     </div>
                   ))
                 )}
