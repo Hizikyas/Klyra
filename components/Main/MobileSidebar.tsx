@@ -73,7 +73,7 @@ export function MobileSidebar({ isOpen, onClose, activeTab, onTabChange }: Mobil
           </div>
 
           <div className="p-4 border-t border-slate-700/50">
-            <div className="text-xs text-slate-400 text-center">Klyra v1.0 • MVP</div>
+            <div className="text-xs text-slate-400 text-center">Klyra v1.0</div>
           </div>
         </div>
       </div>
