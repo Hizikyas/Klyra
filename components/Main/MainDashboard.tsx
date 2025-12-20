@@ -6,8 +6,9 @@ import { LeftSidebar } from "./LeftSidebar";
 import { ChatSection } from "./ChatSection";
 import { RightSidebar } from "./RightSidebar";
 import { MobileSidebar } from "./MobileSidebar";
+import { Groups } from "./Groups"; // Add this import
+import { GroupSidebar } from "./GroupSidebar"; // Add this import
 import { useSocket } from "../../hooks/useSocket";
-
 
 export function MainDashboard() {
   const [activeTab, setActiveTab] = useState("chats");
@@ -16,9 +17,9 @@ export function MainDashboard() {
   const [isRightCollapsed, setIsRightCollapsed] = useState(true);
   const [selectedSetting, setSelectedSetting] = useState<string | null>("profile");
 
-  // Safe client-only currentUser
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -31,7 +32,6 @@ export function MainDashboard() {
     }
   }, []);
 
-  // pass nullable id to useSocket (hook should handle null)
   const { socket, isConnected } = useSocket(currentUser?.id || null, null);
 
   useEffect(() => {
@@ -40,46 +40,42 @@ export function MainDashboard() {
     // Join user room
     socket.emit("joinUser", currentUser?.id);
 
-    // socket.emit("joinGroup", currentUser?.id);
+    // Join all group rooms
+    const joinUserGroups = async () => {
+      try {
+        const token = sessionStorage.getItem('authToken');
+        const response = await fetch('http://localhost:4000/v1/groups', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          data.groups?.forEach((group: any) => {
+            socket.emit("joinGroup", group.id);
+          });
+        }
+      } catch (error) {
+        console.error("Error joining group rooms:", error);
+      }
+    };
 
+    joinUserGroups();
 
-    // Fetch and join group rooms
-    // const joinUserGroups = async () => {
-    //   try {
-    //     // Replace with your API call or Prisma query to get user's groups
-    //     const groups = await prisma.userGroup.findMany({
-    //       where: { userId: currentUser?.id },
-    //       select: { groupId: true },
-    //     });
-    //     groups.forEach((group) => {
-    //       socket.emit("joinGroup", group.groupId);
-    //       console.log(`Joined group room: group:${group.groupId}`);
-    //     });
-    //   } catch (error) {
-    //     console.error("Error fetching user groups:", error);
-    //   }
-    // };
-
-    // joinUserGroups();
-
-    // Cleanup: Leave all rooms on unmount
-    // return () => {
-    //   socket.emit("leaveUser", currentUser?.id);
-
-    // };
+    return () => {
+      socket.emit("leaveUser", currentUser?.id);
+    };
   }, [socket, isConnected, currentUser?.id]);
 
   const handleSettingsClick = () => {
     setActiveTab("settings");
-    setSelectedSetting("profile"); // Default to profile view
+    setSelectedSetting("profile");
   };
 
   if (isLoading) {
-    return <div>Loading...</div>; // Show loading while checking auth
+    return <div>Loading...</div>;
   }
 
   if (!currentUser?.id) {
-    // Redirect to login if no user is authenticated
     window.location.href = "/";
     return null;
   }
@@ -99,18 +95,37 @@ export function MainDashboard() {
 
       <div className="hidden lg:flex h-[calc(100vh-4rem)]">
         <LeftSidebar activeTab={activeTab} onTabChange={setActiveTab} />
-        <ChatSection
-          activeTab={activeTab}
-          selectedChat={selectedChat}
-          onChatSelect={setSelectedChat}
-          onToggleRightPanel={() => setIsRightCollapsed((v) => !v)}
-          selectedSetting={selectedSetting}
-          onSettingSelect={setSelectedSetting}
-          socket={socket}
-          isRightCollapsed={isRightCollapsed}
-        />
+        
+        {activeTab === "chats" ? (
+          <ChatSection
+            activeTab={activeTab}
+            selectedChat={selectedChat}
+            onChatSelect={setSelectedChat}
+            onToggleRightPanel={() => setIsRightCollapsed((v) => !v)}
+            selectedSetting={selectedSetting}
+            onSettingSelect={setSelectedSetting}
+            socket={socket}
+            isRightCollapsed={isRightCollapsed}
+          />
+        ) : activeTab === "groups" ? (
+          <Groups onGroupSelect={setSelectedChat} selectedGroup={selectedChat} />
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-slate-400">
+            Coming soon...
+          </div>
+        )}
+
         <div className="hidden md:block">
-          <RightSidebar selectedChat={selectedChat} collapsed={isRightCollapsed} onClose={() => setIsRightCollapsed(true)} />
+          {selectedChat && (
+            <>
+              {activeTab === "chats" && (
+                <RightSidebar selectedChat={selectedChat} collapsed={isRightCollapsed} onClose={() => setIsRightCollapsed(true)} />
+              )}
+              {activeTab === "groups" && (
+                <GroupSidebar groupId={selectedChat} collapsed={isRightCollapsed} onClose={() => setIsRightCollapsed(true)} />
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -121,15 +136,24 @@ export function MainDashboard() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
         />
-        <ChatSection
-          activeTab={activeTab}
-          selectedChat={selectedChat}
-          onChatSelect={setSelectedChat}
-          isMobile={true}
-          selectedSetting={selectedSetting}
-          onSettingSelect={setSelectedSetting}
-          socket={socket}
-        />
+        
+        {activeTab === "chats" ? (
+          <ChatSection
+            activeTab={activeTab}
+            selectedChat={selectedChat}
+            onChatSelect={setSelectedChat}
+            isMobile={true}
+            selectedSetting={selectedSetting}
+            onSettingSelect={setSelectedSetting}
+            socket={socket}
+          />
+        ) : activeTab === "groups" ? (
+          <Groups onGroupSelect={setSelectedChat} selectedGroup={selectedChat} />
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-slate-400">
+            Coming soon...
+          </div>
+        )}
       </div>
     </div>
   );
