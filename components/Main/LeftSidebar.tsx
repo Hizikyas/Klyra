@@ -18,7 +18,7 @@ export function LeftSidebar({ activeTab, onTabChange }: LeftSidebarProps) {
   const [isHovered, setIsHovered] = useState(false)
   const tabs = [
     { id: "chats", label: "Chats", icon: IoChatboxEllipsesSharp },
-    { id: "groups", label: "Groups", icon: GroupsIcon },
+    { id: "groups", label: "Groups", icon: GroupsIcon }, // Changed from "contacts" to "groups"
     { id: "video", label: "Video Calls", icon: Video },
     { id: "settings", label: "Settings", icon: Settings },
   ]

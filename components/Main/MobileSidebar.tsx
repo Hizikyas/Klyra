@@ -17,7 +17,7 @@ export function MobileSidebar({ isOpen, onClose, activeTab, onTabChange }: Mobil
   const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
   const tabs = [
     { id: "chats", label: "Chats", icon: IoChatboxEllipsesSharp },
-    { id: "groups", label: "Groups", icon: Users }, 
+    { id: "groups", label: "Groups", icon: Users }, // Changed from "contacts" to "groups"
     { id: "video", label: "Video Calls", icon: Video },
     { id: "settings", label: "Settings", icon: Settings },
   ]
