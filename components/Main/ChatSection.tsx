@@ -1226,7 +1226,6 @@ export function ChatSection(props: ChatSectionProps) {
                       {group.messages.map((msg) => {
                         if (msg.isDeleted) return null;
 
-                        // For group messages, get sender info from group members
                         const messageSender = selectedChatObj?.isGroup && groupInfo 
                           ? groupInfo.members.find(m => m.user.id === msg.senderId)?.user
                           : null;
