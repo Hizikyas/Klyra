@@ -575,8 +575,14 @@ export function ChatSection(props: ChatSectionProps) {
     const handleOnlineUsers = (userIds: string[]) => {
       setOnlineStatus((prev) => {
         const next = { ...prev };
+        // Reconcile presence snapshot: mark known users offline first,
+        // then set currently-online user ids to true.
+        Object.keys(next).forEach((id) => {
+          next[id] = { ...next[id], isOnline: false };
+        });
         userIds.forEach((id) => {
-          next[String(id)] = { isOnline: true };
+          const key = String(id);
+          next[key] = { ...next[key], isOnline: true };
         });
         return next;
       });
@@ -632,11 +638,16 @@ export function ChatSection(props: ChatSectionProps) {
         } : undefined,
       };
 
-      setMessages(prev => [...prev, newMessageObj]);
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === newMessageObj.id)) return prev;
+        return [...prev, newMessageObj];
+      });
       const chatKey = String(selectedChat);
       setMessagesCache(prev => ({
         ...prev,
-        [chatKey]: [...(prev[chatKey] || []), newMessageObj]
+        [chatKey]: (prev[chatKey] || []).some((m) => m.id === newMessageObj.id)
+          ? (prev[chatKey] || [])
+          : [...(prev[chatKey] || []), newMessageObj]
       }));
     };
 
@@ -757,10 +768,15 @@ export function ChatSection(props: ChatSectionProps) {
             } : undefined,
           };
 
-          setMessages(prev => [...prev, newMessageObj]);
+          setMessages((prev) => {
+            if (prev.some((msg) => msg.id === newMessageObj.id)) return prev;
+            return [...prev, newMessageObj];
+          });
           setMessagesCache(prev => ({
             ...prev,
-            [chatKey]: [...(prev[chatKey] || []), newMessageObj]
+            [chatKey]: (prev[chatKey] || []).some((msg) => msg.id === newMessageObj.id)
+              ? (prev[chatKey] || [])
+              : [...(prev[chatKey] || []), newMessageObj]
           }));
           setMessage('');
           setSelectedFile(null);
@@ -959,7 +975,8 @@ export function ChatSection(props: ChatSectionProps) {
   const renderGroupHeader = () => {
     if (!selectedChatObj?.isGroup || !groupInfo) return null;
 
-    const onlineCount = groupInfo.members.filter(m => 
+    const activeMembers = groupInfo.members.filter((m) => m.status !== "PENDING");
+    const onlineCount = activeMembers.filter(m => 
       onlineStatus[m.user.id]?.isOnline || m.user.online
     ).length;
 
@@ -980,11 +997,11 @@ export function ChatSection(props: ChatSectionProps) {
               {groupInfo?.name || selectedChatObj?.name || "Group"}
             </h3>
             <span className="text-xs text-slate-400 bg-slate-700/50 px-2 py-0.5 rounded-full">
-              {groupInfo.members.length} members
+              {activeMembers.length} members
             </span>
           </div>
           <p className="text-xs md:text-sm text-green-400">
-            {onlineCount} online • {groupInfo.members.length - onlineCount} offline
+            {onlineCount} online • {activeMembers.length - onlineCount} offline
           </p>
         </div>
       </div>
