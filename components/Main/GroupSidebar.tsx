@@ -21,6 +21,7 @@ interface GroupMember {
   id: string;
   userId: string;
   isAdmin?: boolean;
+  status?: "PENDING" | "ACTIVE";
   user: {
     id: string;
     username: string;
@@ -114,6 +115,51 @@ export function GroupSidebar({
     setAvatarPreviewUrl(null);
   }, [group]);
 
+  const myMembership = useMemo(() => {
+    if (!group || !currentUserId) return null;
+    return group.members.find((m) => String(m.user.id) === String(currentUserId)) || null;
+  }, [group, currentUserId]);
+
+  const handleAcceptInvite = async () => {
+    if (!groupId) return;
+    const token = sessionStorage.getItem("authToken");
+    if (!token) return;
+
+    const res = await fetch(`http://localhost:4000/v1/groups/${groupId}/members/accept`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      console.error("Failed to accept invitation");
+      return;
+    }
+
+    const data = await res.json();
+    setGroup(data.group);
+    onGroupUpdated?.(data.group);
+  };
+
+  const handleDeclineInvite = async () => {
+    if (!groupId) return;
+    const token = sessionStorage.getItem("authToken");
+    if (!token) return;
+
+    const res = await fetch(`http://localhost:4000/v1/groups/${groupId}/members/decline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      console.error("Failed to decline invitation");
+      return;
+    }
+
+    const data = await res.json();
+    setGroup(data.group ?? null);
+    onGroupUpdated?.(data.group);
+  };
+
   const updateGroup = async (opts: { name?: string; avatarFile?: File | null }) => {
     if (!groupId) return;
 
@@ -131,7 +177,17 @@ export function GroupSidebar({
     });
 
     if (!response.ok) {
-      console.error("Failed to update group");
+      let details: string | null = null;
+      try {
+        details = await response.text();
+      } catch {
+        details = null;
+      }
+      console.error("Failed to update group", {
+        status: response.status,
+        statusText: response.statusText,
+        details,
+      });
       return;
     }
 
@@ -307,6 +363,32 @@ export function GroupSidebar({
         </div>
       ) : (
         <>
+          {myMembership?.status === "PENDING" && (
+            <div className="p-4 border-b border-slate-800 bg-amber-500/10">
+              <p className="text-sm font-semibold text-amber-300">Invitation pending</p>
+              <p className="text-xs text-amber-200/80 mt-1">
+                Accept to join this group, or decline to stay out.
+              </p>
+              <div className="flex gap-2 mt-3">
+                <Button
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700"
+                  onClick={handleAcceptInvite}
+                >
+                  Accept
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-red-500/60 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  onClick={handleDeclineInvite}
+                >
+                  Decline
+                </Button>
+              </div>
+            </div>
+          )}
+
           <ScrollArea className="flex-1">
             <div className="p-4 space-y-4">
               <div>
@@ -314,7 +396,9 @@ export function GroupSidebar({
                   Members
                 </h3>
                 <div className="space-y-2">
-                  {group.members.map((member) => {
+                  {group.members
+                    .filter((m) => m.status !== "PENDING")
+                    .map((member) => {
                     const isOwner = group.admins?.includes(member.user.id);
                     return (
                       <div

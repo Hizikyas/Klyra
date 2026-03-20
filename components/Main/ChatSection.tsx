@@ -110,6 +110,7 @@ interface GroupInfo {
       lastSeen?: string;
     };
     isAdmin?: boolean;
+    status?: "PENDING" | "ACTIVE";
   }>;
   admins?: string[];
   createdAt: string;
@@ -570,6 +571,39 @@ export function ChatSection(props: ChatSectionProps) {
   useEffect(() => {
     if (!socket || !currentUser?.id) return;
 
+    // Presence updates for friends: keep `onlineStatus` in sync
+    const handleOnlineUsers = (userIds: string[]) => {
+      setOnlineStatus((prev) => {
+        const next = { ...prev };
+        userIds.forEach((id) => {
+          next[String(id)] = { isOnline: true };
+        });
+        return next;
+      });
+    };
+
+    const handleUserOnline = (data: { userId: string }) => {
+      const userId = String(data?.userId);
+      if (!userId) return;
+      setOnlineStatus((prev) => ({
+        ...prev,
+        [userId]: { isOnline: true },
+      }));
+    };
+
+    const handleUserOffline = (data: { userId: string; lastSeen?: string }) => {
+      const userId = String(data?.userId);
+      if (!userId) return;
+      setOnlineStatus((prev) => ({
+        ...prev,
+        [userId]: { isOnline: false, lastSeen: data?.lastSeen },
+      }));
+    };
+
+    socket.on("onlineUsers", handleOnlineUsers);
+    socket.on("userOnline", handleUserOnline);
+    socket.on("userOffline", handleUserOffline);
+
     const handleGroupMessage = (newMessage: any) => {
       if (newMessage.groupId !== selectedChat) return;
       
@@ -647,6 +681,9 @@ export function ChatSection(props: ChatSectionProps) {
     socket.on('groupUpdated', handleGroupUpdated);
 
     return () => {
+      socket.off("onlineUsers", handleOnlineUsers);
+      socket.off("userOnline", handleUserOnline);
+      socket.off("userOffline", handleUserOffline);
       socket.off('groupMessage', handleGroupMessage);
       socket.off('groupMemberAdded', handleGroupMemberAdded);
       socket.off('groupMemberRemoved', handleGroupMemberRemoved);
@@ -930,8 +967,8 @@ export function ChatSection(props: ChatSectionProps) {
       <div className="flex items-center space-x-2 md:space-x-3 group text-left min-w-0">
         <Avatar className="h-8 w-8 md:h-10 md:w-10 flex-shrink-0">
           <AvatarImage
-            src={selectedChatObj?.avatar || "/placeholder.svg"}
-            alt={selectedChatObj?.name || "Group"}
+            src={groupInfo?.avatar || selectedChatObj?.avatar || "/placeholder.svg"}
+            alt={groupInfo?.name || selectedChatObj?.name || "Group"}
           />
           <AvatarFallback className="bg-blue-600 text-white text-xs md:text-sm">
             <Users className="h-5 w-5" />
@@ -940,7 +977,7 @@ export function ChatSection(props: ChatSectionProps) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h3 className="text-white font-semibold text-sm md:text-base truncate">
-              {selectedChatObj?.name || "Group"}
+              {groupInfo?.name || selectedChatObj?.name || "Group"}
             </h3>
             <span className="text-xs text-slate-400 bg-slate-700/50 px-2 py-0.5 rounded-full">
               {groupInfo.members.length} members

@@ -21,6 +21,8 @@ export function Groups({ onGroupSelect, selectedGroup }: GroupsProps) {
   const [newGroupName, setNewGroupName] = useState("")
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
   const [availableUsers, setAvailableUsers] = useState<any[]>([])
+  const [newGroupAvatarFile, setNewGroupAvatarFile] = useState<File | null>(null)
+  const [newGroupAvatarPreview, setNewGroupAvatarPreview] = useState<string | null>(null)
 
   useEffect(() => {
     fetchGroups()
@@ -73,16 +75,17 @@ export function Groups({ onGroupSelect, selectedGroup }: GroupsProps) {
 
     try {
       const token = sessionStorage.getItem('authToken')
+      const formData = new FormData()
+      formData.append("name", newGroupName)
+      formData.append("userIds", JSON.stringify(selectedUsers))
+      if (newGroupAvatarFile) {
+        formData.append("avatar", newGroupAvatarFile)
+      }
+
       const response = await fetch('http://localhost:4000/v1/groups', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: newGroupName,
-          userIds: selectedUsers,
-        }),
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
       })
 
       if (response.ok) {
@@ -91,6 +94,8 @@ export function Groups({ onGroupSelect, selectedGroup }: GroupsProps) {
         setShowCreateDialog(false)
         setNewGroupName("")
         setSelectedUsers([])
+        setNewGroupAvatarFile(null)
+        setNewGroupAvatarPreview(null)
         onGroupSelect(data.group.id)
       }
     } catch (error) {
@@ -228,6 +233,37 @@ export function Groups({ onGroupSelect, selectedGroup }: GroupsProps) {
                     onChange={(e) => setNewGroupName(e.target.value)}
                     className="bg-slate-700 border-slate-600 text-white"
                   />
+                </div>
+
+                <div>
+                  <label className="text-sm text-slate-300 mb-2 block">Group Photo (optional)</label>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage
+                        src={newGroupAvatarPreview || "/placeholder.svg"}
+                        alt="New group avatar preview"
+                      />
+                      <AvatarFallback className="bg-blue-600 text-white">
+                        <Users className="h-5 w-5" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="block w-full text-sm text-slate-300"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null
+                          setNewGroupAvatarFile(file)
+                          if (file) setNewGroupAvatarPreview(URL.createObjectURL(file))
+                          else setNewGroupAvatarPreview(null)
+                        }}
+                      />
+                      {newGroupAvatarFile && (
+                        <p className="text-xs text-slate-400 mt-1 truncate">{newGroupAvatarFile.name}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 
                 <div>
