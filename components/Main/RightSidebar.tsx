@@ -21,11 +21,45 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<any | null>(null)
   const [isImageOpen, setIsImageOpen] = useState(false)
+  const [sharedFiles, setSharedFiles] = useState<any[]>([])
+  const [loadingFiles, setLoadingFiles] = useState(false)
 
   const openCallLink = (url: string) => {
     const opened = window.open(url, "_blank")
     if (!opened) {
       window.location.href = url
+    }
+    return opened
+  }
+
+  const sendCallEventMessage = async (
+    mode: "audio" | "video",
+    event: "started" | "ended",
+    durationSeconds?: number
+  ) => {
+    if (!selectedChat) return
+    const token = sessionStorage.getItem("authToken")
+    if (!token) return
+
+    const callLabel = mode === "audio" ? "Audio call" : "Video call"
+    const durationText =
+      event === "ended" && typeof durationSeconds === "number"
+        ? ` (duration: ${Math.max(1, durationSeconds)}s)`
+        : ""
+    const content = `${callLabel} ${event}${durationText}`
+
+    const formData = new FormData()
+    formData.append("content", content)
+    formData.append("recipientId", selectedChat)
+
+    try {
+      await fetch("http://localhost:4000/v1/messages", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      })
+    } catch {
+      // best effort
     }
   }
 
@@ -38,10 +72,21 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
     const roomId = ["klyra", ...[String(currentUser.id), String(selectedChat)].sort()].join("-")
     const url =
       mode === "audio"
-        ? `https://meet.jit.si/${roomId}#config.startWithVideoMuted=true`
-        : `https://meet.jit.si/${roomId}`
+        ? `https://talky.io/${roomId}?audio=1`
+        : `https://talky.io/${roomId}`
 
-    openCallLink(url)
+    const startedAt = Date.now()
+    const popup = openCallLink(url)
+    void sendCallEventMessage(mode, "started")
+
+    if (!popup) return
+    const poll = window.setInterval(() => {
+      if (popup.closed) {
+        window.clearInterval(poll)
+        const seconds = Math.round((Date.now() - startedAt) / 1000)
+        void sendCallEventMessage(mode, "ended", seconds)
+      }
+    }, 1500)
   }
 
   useEffect(() => {
@@ -76,6 +121,35 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
       fetchUser(selectedChat)
     }
 
+    return () => {
+      isMounted = false
+    }
+  }, [selectedChat])
+
+  useEffect(() => {
+    if (!selectedChat) return
+
+    let isMounted = true
+    async function fetchSharedFiles(recipientId: string) {
+      setLoadingFiles(true)
+      try {
+        const token = sessionStorage.getItem("authToken")
+        if (!token) return
+        const res = await fetch(`http://localhost:4000/v1/messages?recipientId=${recipientId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: "include",
+        })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!isMounted) return
+        const mediaOnly = (data?.messages || []).filter((m: any) => !!m.mediaUrl)
+        setSharedFiles(mediaOnly)
+      } finally {
+        if (isMounted) setLoadingFiles(false)
+      }
+    }
+
+    fetchSharedFiles(selectedChat)
     return () => {
       isMounted = false
     }
@@ -154,7 +228,37 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
 
         <div>
           <h4 className="text-sm font-medium text-slate-400 mb-2">Shared Files</h4>
-          <div className="text-sm text-slate-500">No shared files yet</div>
+          {loadingFiles ? (
+            <div className="text-sm text-slate-500">Loading...</div>
+          ) : sharedFiles.length === 0 ? (
+            <div className="text-sm text-slate-500">No shared files yet</div>
+          ) : (
+            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+              {sharedFiles.slice(-20).reverse().map((file) => (
+                <button
+                  key={file.id}
+                  className="w-full text-left p-2 rounded-md bg-slate-700/40 hover:bg-slate-700/60 transition"
+                  onClick={() => window.open(file.mediaUrl, "_blank")}
+                >
+                  {file.mediaType?.startsWith("image/") ? (
+                    <img src={file.mediaUrl} alt="shared" className="h-24 w-full object-cover rounded mb-1" />
+                  ) : null}
+                  <p className="text-xs text-slate-300 truncate">
+                    {(() => {
+                      try {
+                        const parsed = new URL(file.mediaUrl)
+                        const named = parsed.searchParams.get("name")
+                        if (named) return decodeURIComponent(named)
+                        return decodeURIComponent(parsed.pathname.split("/").pop() || "File")
+                      } catch {
+                        return "File"
+                      }
+                    })()}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>

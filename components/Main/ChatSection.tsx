@@ -610,6 +610,53 @@ export function ChatSection(props: ChatSectionProps) {
     socket.on("userOnline", handleUserOnline);
     socket.on("userOffline", handleUserOffline);
 
+    const handleDirectMessage = (newMessage: any) => {
+      if (newMessage.groupId) return;
+      const chatKey = String(selectedChat || "");
+      const senderId = String(newMessage.senderId || "");
+      const recipientId = String(newMessage.recipientId || "");
+      const currentId = String(currentUser.id);
+      const otherUserId = senderId === currentId ? recipientId : senderId;
+      if (!chatKey || otherUserId !== chatKey) return;
+
+      const newMessageObj: Message = {
+        id: newMessage.id,
+        sender: senderId === currentId ? "You" : newMessage.sender?.username || "User",
+        senderId,
+        content: newMessage.content || "",
+        mediaUrl: newMessage.mediaUrl || undefined,
+        mediaType: newMessage.mediaType || undefined,
+        timestamp: formatTimestamp(newMessage.createdAt),
+        createdAt: newMessage.createdAt,
+        isOwn: senderId === currentId,
+        isRead: newMessage.isRead,
+        status: senderId === currentId ? (newMessage.isRead ? "read" : "sent") : undefined,
+        isEdited: newMessage.isEdited,
+        isDeleted: newMessage.isDeleted,
+        replyTo: newMessage.replyTo
+          ? {
+              id: newMessage.replyTo.id,
+              content: newMessage.replyTo.content,
+              sender: { username: newMessage.replyTo.sender?.username || "User" },
+              mediaUrl: newMessage.replyTo.mediaUrl,
+              mediaType: newMessage.replyTo.mediaType,
+              isDeleted: newMessage.replyTo.isDeleted,
+            }
+          : undefined,
+      };
+
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === newMessageObj.id)) return prev;
+        return [...prev, newMessageObj];
+      });
+      setMessagesCache((prev) => ({
+        ...prev,
+        [chatKey]: (prev[chatKey] || []).some((m) => m.id === newMessageObj.id)
+          ? prev[chatKey] || []
+          : [...(prev[chatKey] || []), newMessageObj],
+      }));
+    };
+
     const handleGroupMessage = (newMessage: any) => {
       if (newMessage.groupId !== selectedChat) return;
       
@@ -687,6 +734,7 @@ export function ChatSection(props: ChatSectionProps) {
     };
 
     socket.on('groupMessage', handleGroupMessage);
+    socket.on("newMessage", handleDirectMessage);
     socket.on('groupMemberAdded', handleGroupMemberAdded);
     socket.on('groupMemberRemoved', handleGroupMemberRemoved);
     socket.on('groupUpdated', handleGroupUpdated);
@@ -695,6 +743,7 @@ export function ChatSection(props: ChatSectionProps) {
       socket.off("onlineUsers", handleOnlineUsers);
       socket.off("userOnline", handleUserOnline);
       socket.off("userOffline", handleUserOffline);
+      socket.off("newMessage", handleDirectMessage);
       socket.off('groupMessage', handleGroupMessage);
       socket.off('groupMemberAdded', handleGroupMemberAdded);
       socket.off('groupMemberRemoved', handleGroupMemberRemoved);
@@ -1048,6 +1097,44 @@ export function ChatSection(props: ChatSectionProps) {
     if (!opened) {
       window.location.href = url;
     }
+    return opened;
+  };
+
+  const sendCallEventMessage = async (
+    mode: "audio" | "video",
+    event: "started" | "ended",
+    durationSeconds?: number
+  ) => {
+    if (!selectedChatKey) return;
+    const token = sessionStorage.getItem("authToken");
+    if (!token) return;
+
+    const isGroup = !!selectedChatObj?.isGroup;
+    const callLabel = mode === "audio" ? "Audio call" : "Video call";
+    const durationText =
+      event === "ended" && typeof durationSeconds === "number"
+        ? ` (duration: ${Math.max(1, durationSeconds)}s)`
+        : "";
+    const content = `${callLabel} ${event}${durationText}`;
+
+    const formData = new FormData();
+    formData.append("content", content);
+    if (isGroup) formData.append("groupId", selectedChatKey);
+    else formData.append("recipientId", selectedChatKey);
+
+    const endpoint = isGroup
+      ? "http://localhost:4000/v1/groups/messages"
+      : "http://localhost:4000/v1/messages";
+
+    try {
+      await fetch(endpoint, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+    } catch {
+      // best-effort notification
+    }
   };
 
   const startCall = (mode: "audio" | "video") => {
@@ -1057,9 +1144,21 @@ export function ChatSection(props: ChatSectionProps) {
       : ["klyra", ...[String(currentUser.id), String(selectedChatKey)].sort()].join("-");
     const url =
       mode === "audio"
-        ? `https://meet.jit.si/${roomId}#config.startWithVideoMuted=true`
-        : `https://meet.jit.si/${roomId}`;
-    openCallLink(url);
+        ? `https://talky.io/${roomId}?audio=1`
+        : `https://talky.io/${roomId}`;
+
+    const startedAt = Date.now();
+    const popup = openCallLink(url);
+    void sendCallEventMessage(mode, "started");
+
+    if (!popup) return;
+    const poll = window.setInterval(() => {
+      if (popup.closed) {
+        window.clearInterval(poll);
+        const seconds = Math.round((Date.now() - startedAt) / 1000);
+        void sendCallEventMessage(mode, "ended", seconds);
+      }
+    }, 1500);
   };
 
   return (

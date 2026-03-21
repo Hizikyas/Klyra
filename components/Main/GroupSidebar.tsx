@@ -69,6 +69,8 @@ export function GroupSidebar({
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [sharedFiles, setSharedFiles] = useState<any[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
 
   useEffect(() => {
     if (!groupId) return;
@@ -95,6 +97,32 @@ export function GroupSidebar({
     };
 
     fetchGroup();
+  }, [groupId]);
+
+  useEffect(() => {
+    if (!groupId) return;
+    let isMounted = true;
+    const fetchSharedFiles = async () => {
+      setLoadingFiles(true);
+      try {
+        const token = sessionStorage.getItem("authToken");
+        if (!token) return;
+        const response = await fetch(`http://localhost:4000/v1/groups/${groupId}/messages`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!isMounted) return;
+        const mediaOnly = (data?.messages || []).filter((m: any) => !!m.mediaUrl);
+        setSharedFiles(mediaOnly);
+      } finally {
+        if (isMounted) setLoadingFiles(false);
+      }
+    };
+    fetchSharedFiles();
+    return () => {
+      isMounted = false;
+    };
   }, [groupId]);
 
   useEffect(() => {
@@ -445,6 +473,43 @@ export function GroupSidebar({
                     );
                   })}
                 </div>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                  Shared Files
+                </h3>
+                {loadingFiles ? (
+                  <p className="text-sm text-slate-500">Loading...</p>
+                ) : sharedFiles.length === 0 ? (
+                  <p className="text-sm text-slate-500">No shared files yet</p>
+                ) : (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {sharedFiles.slice(-25).reverse().map((file) => (
+                      <button
+                        key={file.id}
+                        className="w-full text-left p-2 rounded-md bg-slate-800/60 hover:bg-slate-700/70 transition"
+                        onClick={() => window.open(file.mediaUrl, "_blank")}
+                      >
+                        {file.mediaType?.startsWith("image/") ? (
+                          <img src={file.mediaUrl} alt="shared" className="h-24 w-full object-cover rounded mb-1" />
+                        ) : null}
+                        <p className="text-xs text-slate-300 truncate">
+                          {(() => {
+                            try {
+                              const parsed = new URL(file.mediaUrl);
+                              const named = parsed.searchParams.get("name");
+                              if (named) return decodeURIComponent(named);
+                              return decodeURIComponent(parsed.pathname.split("/").pop() || "File");
+                            } catch {
+                              return "File";
+                            }
+                          })()}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </ScrollArea>
