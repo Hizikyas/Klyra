@@ -1043,6 +1043,25 @@ export function ChatSection(props: ChatSectionProps) {
 
   const groupedMessages = groupMessagesByDate(messages);
 
+  const openCallLink = (url: string) => {
+    const opened = window.open(url, "_blank");
+    if (!opened) {
+      window.location.href = url;
+    }
+  };
+
+  const startCall = (mode: "audio" | "video") => {
+    if (!selectedChatKey || !currentUser?.id) return;
+    const roomId = selectedChatObj?.isGroup
+      ? `klyra-group-${String(selectedChatKey)}`
+      : ["klyra", ...[String(currentUser.id), String(selectedChatKey)].sort()].join("-");
+    const url =
+      mode === "audio"
+        ? `https://meet.jit.si/${roomId}#config.startWithVideoMuted=true`
+        : `https://meet.jit.si/${roomId}`;
+    openCallLink(url);
+  };
+
   return (
     <div className="flex-1 flex flex-col md:flex-row">
       <div className={cn(
@@ -1224,16 +1243,22 @@ export function ChatSection(props: ChatSectionProps) {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
-                  {!selectedChatObj?.isGroup && (
-                    <>
-                      <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white hover:bg-slate-700/50 hidden sm:flex">
-                        <Phone className="h-4 w-4 md:h-5 md:w-5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white hover:bg-slate-700/50 hidden sm:flex">
-                        <Video className="h-4 w-4 md:h-5 md:w-5" />
-                      </Button>
-                    </>
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-slate-300 hover:text-white hover:bg-slate-700/50"
+                    onClick={() => startCall("audio")}
+                  >
+                    <Phone className="h-4 w-4 md:h-5 md:w-5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-slate-300 hover:text-white hover:bg-slate-700/50"
+                    onClick={() => startCall("video")}
+                  >
+                    <Video className="h-4 w-4 md:h-5 md:w-5" />
+                  </Button>
                 </div>
               </div>
             </div>

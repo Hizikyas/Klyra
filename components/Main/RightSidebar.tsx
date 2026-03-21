@@ -22,6 +22,28 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
   const [user, setUser] = useState<any | null>(null)
   const [isImageOpen, setIsImageOpen] = useState(false)
 
+  const openCallLink = (url: string) => {
+    const opened = window.open(url, "_blank")
+    if (!opened) {
+      window.location.href = url
+    }
+  }
+
+  const startDirectCall = (mode: "audio" | "video") => {
+    if (!selectedChat) return
+    const rawCurrentUser = sessionStorage.getItem("currentUser")
+    const currentUser = rawCurrentUser ? JSON.parse(rawCurrentUser) : null
+    if (!currentUser?.id) return
+
+    const roomId = ["klyra", ...[String(currentUser.id), String(selectedChat)].sort()].join("-")
+    const url =
+      mode === "audio"
+        ? `https://meet.jit.si/${roomId}#config.startWithVideoMuted=true`
+        : `https://meet.jit.si/${roomId}`
+
+    openCallLink(url)
+  }
+
   useEffect(() => {
     let isMounted = true
     async function fetchUser(userId: string) {
@@ -107,11 +129,15 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
       )}
 
       <div className="space-y-3 mb-6">
-        <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+        <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white" onClick={() => startDirectCall("video")}>
           <Video className="mr-2 h-4 w-4" />
           Start Video Call
         </Button>
-        <Button variant="outline" className="w-full border-slate-600 text-slate-300 hover:bg-slate-700/50 bg-transparent">
+        <Button
+          variant="outline"
+          className="w-full border-slate-600 text-slate-300 hover:bg-slate-700/50 bg-transparent"
+          onClick={() => startDirectCall("audio")}
+        >
           <Phone className="mr-2 h-4 w-4" />
           Voice Call
         </Button>

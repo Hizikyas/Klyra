@@ -203,7 +203,18 @@ export function ChatMessageList({
                             <div className="flex-1 min-w-0">
                               <p className="text-sm text-white truncate">
                                 {(() => {
-                                  const name = msg.mediaUrl?.split("/").pop() || "File";
+                                  let name = "File";
+                                  try {
+                                    const parsed = new URL(msg.mediaUrl || "", window.location.origin);
+                                    const fromQuery = parsed.searchParams.get("name");
+                                    if (fromQuery) {
+                                      name = fromQuery;
+                                    } else {
+                                      name = parsed.pathname.split("/").pop() || "File";
+                                    }
+                                  } catch {
+                                    name = msg.mediaUrl?.split("/").pop() || "File";
+                                  }
                                   try {
                                     return decodeURIComponent(name);
                                   } catch {
