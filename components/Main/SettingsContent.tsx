@@ -32,10 +32,35 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
     bio: currentUser?.bio || ""
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [stats, setStats] = useState({ friends: 0, messages: 0 });
 
   useEffect(() => {
     setSelectedBg(localStorage.getItem("chatBg") || "");
   }, []);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!currentUser?.id) return;
+      try {
+        const token = sessionStorage.getItem('authToken');
+        const res = await fetch(`http://localhost:4000/v1/users/${currentUser.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setStats({
+              friends: data.user.friendsCount || 0,
+              messages: data.user.messagesCount || 0
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Failed to fetch user stats", e);
+      }
+    };
+    fetchStats();
+  }, [currentUser?.id]);
 
   const handleBgChange = (src: string) => {
     setSelectedBg(src);
@@ -137,11 +162,11 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
           <h3 className="text-lg font-semibold text-white mb-4">Statistics</h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-400">24</div>
+              <div className="text-2xl font-bold text-purple-400">{stats.friends}</div>
               <div className="text-sm text-slate-400">Friends</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-400">156</div>
+              <div className="text-2xl font-bold text-purple-400">{stats.messages}</div>
               <div className="text-sm text-slate-400">Messages</div>
             </div>
           </div>
