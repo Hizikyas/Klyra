@@ -1,6 +1,6 @@
 "use client"
 
-import { Video, Users, Settings, Circle, Users as GroupsIcon } from "lucide-react"
+import { Users, Settings, Circle, Users as GroupsIcon } from "lucide-react"
 import { IoChatboxEllipsesSharp } from "react-icons/io5"
 import React , { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,6 @@ export function LeftSidebar({ activeTab, onTabChange }: LeftSidebarProps) {
   const tabs = [
     { id: "chats", label: "Chats", icon: IoChatboxEllipsesSharp },
     { id: "groups", label: "Groups", icon: GroupsIcon }, // Changed from "contacts" to "groups"
-    { id: "video", label: "Video Calls", icon: Video },
     { id: "settings", label: "Settings", icon: Settings },
   ]
 
