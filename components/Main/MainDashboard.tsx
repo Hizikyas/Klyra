@@ -6,8 +6,10 @@ import { LeftSidebar } from "./LeftSidebar";
 import { ChatSection } from "./ChatSection";
 import { RightSidebar } from "./RightSidebar";
 import { MobileSidebar } from "./MobileSidebar";
-import { Groups } from "./Groups"; // Add this import
-import { GroupSidebar } from "./GroupSidebar"; // Add this import
+import { Groups } from "./Groups"; 
+import { GroupSidebar } from "./GroupSidebar"; 
+import { SettingsSidebar } from "./SettingsSidebar";
+import { SettingsContent } from "./SettingsContent";
 import { useSocket } from "../../hooks/useSocket";
 
 export function MainDashboard() {
@@ -109,6 +111,16 @@ export function MainDashboard() {
           />
         ) : activeTab === "groups" ? (
           <Groups onGroupSelect={setSelectedChat} selectedGroup={selectedChat} />
+        ) : activeTab === "settings" ? (
+          <div className="flex-1 flex overflow-hidden">
+            <SettingsSidebar 
+              selectedSetting={selectedSetting} 
+              onSettingSelect={setSelectedSetting} 
+            />
+            <SettingsContent 
+              selectedSetting={selectedSetting} 
+            />
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-slate-400">
             Coming soon...
@@ -149,6 +161,18 @@ export function MainDashboard() {
           />
         ) : activeTab === "groups" ? (
           <Groups onGroupSelect={setSelectedChat} selectedGroup={selectedChat} />
+        ) : activeTab === "settings" ? (
+          <div className="flex-1 flex flex-col overflow-y-auto">
+            <SettingsSidebar 
+              selectedSetting={selectedSetting} 
+              onSettingSelect={setSelectedSetting} 
+              isMobile={true} 
+            />
+            <SettingsContent 
+              selectedSetting={selectedSetting} 
+              isMobile={true} 
+            />
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-slate-400">
             Coming soon...

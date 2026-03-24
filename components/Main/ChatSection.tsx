@@ -158,6 +158,7 @@ export function ChatSection(props: ChatSectionProps) {
   const [availableUsers, setAvailableUsers] = useState<any[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [chatBg, setChatBg] = useState("");
   const chatsRef = useRef<ChatItem[]>([]);
 
   const [contextMenu, setContextMenu] = useState<{
@@ -179,6 +180,11 @@ export function ChatSection(props: ChatSectionProps) {
     } catch {
       setCurrentUser({});
     }
+
+    setChatBg(localStorage.getItem("chatBg") || "");
+    const handleBgChange = () => setChatBg(localStorage.getItem("chatBg") || "");
+    window.addEventListener("chatBgChanged", handleBgChange);
+    return () => window.removeEventListener("chatBgChanged", handleBgChange);
   }, []);
 
   useEffect(() => {
@@ -1278,9 +1284,20 @@ export function ChatSection(props: ChatSectionProps) {
       </div>
 
       <div className={cn(
-        "flex-1 flex flex-col bg-slate-900/10 relative w-full",
+        "flex-1 flex flex-col bg-slate-900/10 relative w-full overflow-hidden",
         isMobile ? (selectedChat ? "w-full" : "hidden") : "flex-1"
       )}>
+        {chatBg && (
+          <div 
+            className="absolute inset-0 pointer-events-none opacity-20"
+            style={{
+              backgroundImage: `url(${chatBg})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat'
+            }}
+          />
+        )}
         {selectedChat ? (
           <>
             <div className="p-3 md:p-4 border-b border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { User, Edit3, Shield, Bell, Palette, HelpCircle, LogOut, Mail, Phone, MapPin, Calendar, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,6 +15,68 @@ interface SettingsContentProps {
 
 export function SettingsContent({ selectedSetting, isMobile = false }: SettingsContentProps) {
   const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
+
+  const backgrounds = [
+    { id: "default", name: "Default (None)", src: "" },
+    { id: "blue", name: "Blue Gradient", src: "/background/blue-gradiant.jpg" },
+    { id: "doodle", name: "Hand Drawn Doodle", src: "/background/hand-drawn-doodle.jpg" },
+    { id: "tech", name: "Modern Tech", src: "/background/modern-tech-background.jpg" },
+  ];
+  
+  const [selectedBg, setSelectedBg] = useState("");
+  const [profileData, setProfileData] = useState({
+    fullname: currentUser?.fullname || "",
+    username: currentUser?.username || "",
+    email: currentUser?.email || "",
+    phone: currentUser?.phone || "",
+    bio: currentUser?.bio || ""
+  });
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setSelectedBg(localStorage.getItem("chatBg") || "");
+  }, []);
+
+  const handleBgChange = (src: string) => {
+    setSelectedBg(src);
+    if (src) {
+      localStorage.setItem("chatBg", src);
+    } else {
+      localStorage.removeItem("chatBg");
+    }
+    window.dispatchEvent(new Event("chatBgChanged"));
+  };
+
+  const handleSaveProfile = async () => {
+    if (!currentUser?.id) return;
+    setIsSaving(true);
+    try {
+      const token = sessionStorage.getItem('authToken');
+      const res = await fetch(`http://localhost:4000/v1/users/${currentUser.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(profileData)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          sessionStorage.setItem("currentUser", JSON.stringify(data.user));
+          window.dispatchEvent(new Event("profileUpdated"));
+          alert("Profile updated successfully!");
+        }
+      } else {
+        alert("Failed to update profile.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred while saving.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const renderProfileView = () => (
     <div className="p-6 overflow-y-auto h-full">
@@ -123,7 +186,8 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
               <Input 
-                defaultValue={currentUser?.fullname || ""} 
+                value={profileData.fullname} 
+                onChange={(e) => setProfileData({...profileData, fullname: e.target.value})}
                 className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
                 placeholder="Enter your full name"
               />
@@ -131,7 +195,8 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Username</label>
               <Input 
-                defaultValue={currentUser?.username || ""} 
+                value={profileData.username} 
+                onChange={(e) => setProfileData({...profileData, username: e.target.value})}
                 className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
                 placeholder="Enter your username"
               />
@@ -139,7 +204,8 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
               <Input 
-                defaultValue={currentUser?.email || ""} 
+                value={profileData.email} 
+                onChange={(e) => setProfileData({...profileData, email: e.target.value})}
                 type="email"
                 className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
                 placeholder="Enter your email"
@@ -148,7 +214,8 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Phone</label>
               <Input 
-                defaultValue="+1 (555) 123-4567" 
+                value={profileData.phone} 
+                onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
                 className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400"
                 placeholder="Enter your phone number"
               />
@@ -158,18 +225,31 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
               <textarea 
                 className="w-full h-24 px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-md text-white placeholder:text-slate-400 focus:border-purple-400 focus:outline-none resize-none"
                 placeholder="Tell us about yourself..."
-                defaultValue={currentUser?.bio || ""}
+                value={profileData.bio}
+                onChange={(e) => setProfileData({...profileData, bio: e.target.value})}
               />
             </div>
           </div>
         </div>
 
         <div className="flex justify-end space-x-3">
-          <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700/50">
+          <Button variant="outline" className="border-slate-600 text-slate-300 hover:bg-slate-700/50" onClick={() => {
+            setProfileData({
+              fullname: currentUser?.fullname || "",
+              username: currentUser?.username || "",
+              email: currentUser?.email || "",
+              phone: currentUser?.phone || "",
+              bio: currentUser?.bio || ""
+            });
+          }}>
             Cancel
           </Button>
-          <Button className="bg-purple-600 hover:bg-purple-700 text-white">
-            Save Changes
+          <Button 
+            className="bg-purple-600 hover:bg-purple-700 text-white"
+            onClick={handleSaveProfile}
+            disabled={isSaving}
+          >
+            {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </div>
@@ -210,10 +290,30 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
         <Palette className="mr-2 h-6 w-6" />
         Appearance
       </h2>
-      <div className="text-center text-slate-400">
+      <div className="text-center text-slate-400 mb-8">
         <Palette className="h-16 w-16 mx-auto mb-4 text-slate-500" />
         <h3 className="text-xl font-semibold mb-2">Appearance Settings</h3>
-        <p>Customize the app's look and feel here.</p>
+        <p>Customize the chat background image.</p>
+      </div>
+
+      <div className="bg-slate-800/30 rounded-lg p-6">
+        <h3 className="text-lg font-semibold text-white mb-4">Chat Background</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {backgrounds.map((bg) => (
+            <div 
+              key={bg.id} 
+              className={cn("cursor-pointer rounded-lg border-2 overflow-hidden transition-all duration-200", selectedBg === bg.src ? "border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.4)]" : "border-slate-700 hover:border-slate-500")}
+              onClick={() => handleBgChange(bg.src)}
+            >
+              {bg.src ? (
+                 <img src={bg.src} alt={bg.name} className="w-full h-32 object-cover" />
+              ) : (
+                 <div className="w-full h-32 bg-slate-900 flex items-center justify-center text-slate-500">Default Theme</div>
+              )}
+              <div className={cn("p-2 text-center text-sm font-medium", selectedBg === bg.src ? "bg-purple-600/20 text-purple-300" : "bg-slate-800 text-slate-300")}>{bg.name}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -242,7 +342,11 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
         <LogOut className="h-16 w-16 mx-auto mb-4 text-slate-500" />
         <h3 className="text-xl font-semibold mb-2">Sign Out</h3>
         <p>Are you sure you want to log out?</p>
-        <Button className="mt-4 bg-red-600 hover:bg-red-700 text-white">
+        <Button className="mt-4 bg-red-600 hover:bg-red-700 text-white" onClick={() => {
+          sessionStorage.clear();
+          localStorage.removeItem("authToken");
+          window.location.href = "/";
+        }}>
           <LogOut className="mr-2 h-4 w-4" />
           Log Out
         </Button>
