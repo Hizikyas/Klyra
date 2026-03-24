@@ -1,6 +1,6 @@
 "use client"
 
-import { User, Edit3, Shield, Bell, Palette, HelpCircle, LogOut } from "lucide-react"
+import { User, Edit3, Palette, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -13,10 +13,7 @@ interface SettingsSidebarProps {
 const settingsOptions = [
   { id: "profile", label: "View Profile", icon: User, description: "View and manage your profile" },
   { id: "edit-profile", label: "Edit Profile", icon: Edit3, description: "Update your personal information" },
-  { id: "privacy", label: "Privacy & Security", icon: Shield, description: "Manage your privacy settings" },
-  { id: "notifications", label: "Notifications", icon: Bell, description: "Configure notification preferences" },
   { id: "appearance", label: "Appearance", icon: Palette, description: "Customize the app's look and feel" },
-  { id: "help", label: "Help & Support", icon: HelpCircle, description: "Get help and contact support" },
   { id: "logout", label: "Log Out", icon: LogOut, description: "Sign out of your account" },
 ]
 

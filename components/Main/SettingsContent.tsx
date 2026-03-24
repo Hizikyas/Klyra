@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { User, Edit3, Shield, Bell, Palette, HelpCircle, LogOut, Mail, Phone, MapPin, Calendar, Camera } from "lucide-react"
+import { User, Edit3,  Palette, LogOut, Mail, Phone, MapPin, Calendar, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -256,34 +256,6 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
     </div>
   )
 
-  const renderPrivacySettings = () => (
-    <div className="p-6 overflow-y-auto h-full">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
-        <Shield className="mr-2 h-6 w-6" />
-        Privacy & Security
-      </h2>
-      <div className="text-center text-slate-400">
-        <Shield className="h-16 w-16 mx-auto mb-4 text-slate-500" />
-        <h3 className="text-xl font-semibold mb-2">Privacy Settings</h3>
-        <p>Configure your privacy and security preferences here.</p>
-      </div>
-    </div>
-  )
-
-  const renderNotifications = () => (
-    <div className="p-6 overflow-y-auto h-full">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
-        <Bell className="mr-2 h-6 w-6" />
-        Notifications
-      </h2>
-      <div className="text-center text-slate-400">
-        <Bell className="h-16 w-16 mx-auto mb-4 text-slate-500" />
-        <h3 className="text-xl font-semibold mb-2">Notification Settings</h3>
-        <p>Manage your notification preferences here.</p>
-      </div>
-    </div>
-  )
-
   const renderAppearance = () => (
     <div className="p-6 overflow-y-auto h-full">
       <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
@@ -318,19 +290,6 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
     </div>
   )
 
-  const renderHelp = () => (
-    <div className="p-6 overflow-y-auto h-full">
-      <h2 className="text-2xl font-bold text-white mb-6 flex items-center">
-        <HelpCircle className="mr-2 h-6 w-6" />
-        Help & Support
-      </h2>
-      <div className="text-center text-slate-400">
-        <HelpCircle className="h-16 w-16 mx-auto mb-4 text-slate-500" />
-        <h3 className="text-xl font-semibold mb-2">Get Help</h3>
-        <p>Find answers to common questions and contact support.</p>
-      </div>
-    </div>
-  )
 
   const renderLogout = () => (
     <div className="p-6 overflow-y-auto h-full">
@@ -360,14 +319,8 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
         return renderProfileView()
       case "edit-profile":
         return renderEditProfile()
-      case "privacy":
-        return renderPrivacySettings()
-      case "notifications":
-        return renderNotifications()
       case "appearance":
         return renderAppearance()
-      case "help":
-        return renderHelp()
       case "logout":
         return renderLogout()
       default:
