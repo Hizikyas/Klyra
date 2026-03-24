@@ -22,7 +22,6 @@ interface TopNavigationProps {
 
 export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNavigationProps) {
   const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
-  console.log("TopNavigation currentUser:", currentUser) // Debug log
   const [query, setQuery] = useState("")
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -31,6 +30,14 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
   const containerRef = useRef<HTMLDivElement>(null)
   const [hasSubmitted, setHasSubmitted] = useState(false)
   const [showMobileSearch, setShowMobileSearch] = useState(false)
+  const [unreadSendersCount, setUnreadSendersCount] = useState(0)
+
+  // Listen for unread count updates
+  useEffect(() => {
+    const handleUpdate = (e: CustomEvent<number>) => setUnreadSendersCount(e.detail)
+    window.addEventListener('updateUnreadCount', handleUpdate as EventListener)
+    return () => window.removeEventListener('updateUnreadCount', handleUpdate as EventListener)
+  }, [])
 
   // Debounce the query
   useEffect(() => {
@@ -341,8 +348,13 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
         >
           <Search className="h-5 w-5" />
         </Button>
-        <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white hover:bg-slate-700/50">
+        <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white hover:bg-slate-700/50 relative">
           <Bell className="h-5 w-5" />
+          {unreadSendersCount > 0 && (
+            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-red-600 rounded-full">
+              {unreadSendersCount}
+            </span>
+          )}
         </Button>
         <div className="relative">
           <DropdownMenu>
@@ -374,7 +386,14 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
                 Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-slate-700" />
-              <DropdownMenuItem className="text-slate-300 hover:text-white hover:bg-slate-700">
+              <DropdownMenuItem 
+                className="text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer"
+                onClick={() => {
+                  sessionStorage.clear();
+                  localStorage.removeItem("authToken");
+                  window.location.href = "/";
+                }}
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 Log out
               </DropdownMenuItem>

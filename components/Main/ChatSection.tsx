@@ -482,6 +482,10 @@ export function ChatSection(props: ChatSectionProps) {
       sessionStorage.setItem('recentChats', JSON.stringify(chats));
     } catch (e) {}
     chatsRef.current = chats;
+    
+    // Broadcast the number of unique senders (conversations) with unread messages
+    const unreadSenders = chats.filter(c => c.unread > 0).length;
+    window.dispatchEvent(new CustomEvent('updateUnreadCount', { detail: unreadSenders }));
   }, [chats]);
 
   useEffect(() => {

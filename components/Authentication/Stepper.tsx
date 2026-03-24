@@ -9,6 +9,7 @@ interface StepperProps {
   onFinalStepCompleted?: () => void;
   nextButtonProps?: (step: number) => any;
   backButtonProps?: any;
+  onNext?: (step: number) => Promise<boolean> | boolean;
 }
 
 export default function Stepper({
@@ -17,13 +18,18 @@ export default function Stepper({
   onFinalStepCompleted = () => {},
   nextButtonProps = () => ({}),
   backButtonProps = {},
+  onNext,
 }: StepperProps) {
   const [currentStep, setCurrentStep] = useState(initialStep);
   const stepsArray = Children.toArray(children);
   const totalSteps = stepsArray.length;
   const isLastStep = currentStep === totalSteps;
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    if (onNext) {
+      const canProceed = await onNext(currentStep);
+      if (!canProceed) return;
+    }
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     } else {

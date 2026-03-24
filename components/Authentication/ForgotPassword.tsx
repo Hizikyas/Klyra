@@ -63,32 +63,66 @@ const ForgotPassword = () => {
     }
   };
 
-  // Handle keyboard navigation for stepper
   const handleKeyDown = (e: React.KeyboardEvent, step: number) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       
-      // Check if current step is valid before proceeding
       if (step === 1 && isEmailValid(email)) {
-        // Trigger next step
         const nextButton = document.querySelector('[data-step="next"]') as HTMLButtonElement;
-        if (nextButton && !nextButton.disabled) {
-          nextButton.click();
-        }
+        if (nextButton && !nextButton.disabled) nextButton.click();
       } else if (step === 2 && isOtpValid(otp)) {
-        // Trigger next step
         const nextButton = document.querySelector('[data-step="next"]') as HTMLButtonElement;
-        if (nextButton && !nextButton.disabled) {
-          nextButton.click();
-        }
+        if (nextButton && !nextButton.disabled) nextButton.click();
       } else if (step === 3 && isPasswordValid()) {
-        // Trigger complete
         const completeButton = document.querySelector('[data-step="complete"]') as HTMLButtonElement;
-        if (completeButton && !completeButton.disabled) {
-          completeButton.click();
-        }
+        if (completeButton && !completeButton.disabled) completeButton.click();
       }
     }
+  };
+
+  const handleNextStep = async (step: number) => {
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+    if (step === 1) {
+      try {
+        const res = await fetch(`${backendUrl}/v1/users/forgotPassword`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          return true;
+        } else {
+          alert(data.message || 'Failed to send OTP');
+          return false;
+        }
+      } catch (e) {
+        alert('Network error sending OTP');
+        return false;
+      }
+    } else if (step === 2) {
+      return true; 
+    } else if (step === 3) {
+      try {
+        const res = await fetch(`${backendUrl}/v1/users/resetPassword`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, otp, password: newPassword })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('Password reset successfully!');
+          return true;
+        } else {
+          alert(data.message || 'Failed to reset password');
+          return false;
+        }
+      } catch (e) {
+        alert('Network error resetting password');
+        return false;
+      }
+    }
+    return true;
   };
 
   const handleComplete = () => {
@@ -118,6 +152,7 @@ const ForgotPassword = () => {
 
       <Stepper
         initialStep={1}
+        onNext={handleNextStep}
         onFinalStepCompleted={handleComplete}
         nextButtonProps={(step: number) => ({
           disabled: (step === 1 && !isEmailValid(email)) || 
