@@ -4,7 +4,7 @@ import { useRef } from "react";
 import type { MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { Check } from "lucide-react";
+import { Check, Forward } from "lucide-react";
 import { IoCheckmarkDone } from "react-icons/io5";
 import type { ReactNode } from "react";
 
@@ -21,6 +21,8 @@ interface Message {
   status?: "sending" | "sent" | "read";
   isEdited?: boolean;
   isDeleted?: boolean;
+  isForwarded?: boolean;
+  forwardedFrom?: string;
   replyTo?: any;
   isRead?: boolean;
 }
@@ -165,10 +167,19 @@ export function ChatMessageList({
                       : "px-3 py-1.5 md:px-4 md:py-2"
                   )}
                 >
-                  {selectedChatObj?.isGroup && !msg.isOwn && (
+                  {selectedChatObj?.isGroup && !msg.isOwn && !msg.isForwarded && (
                     <p className="text-xs font-medium mb-1 text-blue-200">
                       {messageSender?.fullname || messageSender?.username || "Unknown"}
                     </p>
+                  )}
+
+                  {msg.isForwarded && (
+                    <div className="flex items-center gap-1 mb-1 opacity-80">
+                      <Forward className="w-3 h-3 text-slate-300" />
+                      <p className="text-xs italic text-slate-300">
+                        Forwarded from {msg.forwardedFrom || "Unknown"}
+                      </p>
+                    </div>
                   )}
 
                   {msg.replyTo && !msg.replyTo.isDeleted && (

@@ -93,6 +93,8 @@ interface Message {
   mediaType?: string;
   isEdited?: boolean;
   isDeleted?: boolean;
+  isForwarded?: boolean;
+  forwardedFrom?: string;
   replyTo?: ReplyTo;
   groupId?: string;
 }
@@ -634,6 +636,8 @@ export function ChatSection(props: ChatSectionProps) {
             status: m.senderId === currentUser.id ? (m.isRead ? 'read' as const : 'sent' as const) : undefined,
             isEdited: m.isEdited,
             isDeleted: m.isDeleted,
+            isForwarded: m.isForwarded,
+            forwardedFrom: m.forwardedFrom,
             groupId: m.groupId,
             replyTo: m.replyTo ? {
               id: m.replyTo.id,
@@ -737,6 +741,8 @@ export function ChatSection(props: ChatSectionProps) {
         status: senderId === currentId ? (newMessage.isRead ? "read" : "sent") : undefined,
         isEdited: newMessage.isEdited,
         isDeleted: newMessage.isDeleted,
+        isForwarded: newMessage.isForwarded,
+        forwardedFrom: newMessage.forwardedFrom,
         replyTo: newMessage.replyTo
           ? {
               id: newMessage.replyTo.id,
@@ -778,6 +784,8 @@ export function ChatSection(props: ChatSectionProps) {
         status: newMessage.senderId === currentUser.id ? (newMessage.isRead ? 'read' as const : 'sent' as const) : undefined,
         isEdited: newMessage.isEdited,
         isDeleted: newMessage.isDeleted,
+        isForwarded: newMessage.isForwarded,
+        forwardedFrom: newMessage.forwardedFrom,
         groupId: newMessage.groupId,
         replyTo: newMessage.replyTo ? {
           id: newMessage.replyTo.id,
@@ -1786,6 +1794,20 @@ export function ChatSection(props: ChatSectionProps) {
             <CheckSquare className="w-4 h-4" />
             Select Message
           </button>
+
+          {!contextMenu.message.isDeleted && (
+            <button
+              onClick={() => {
+                setSelectedMessageIds([contextMenu.message!.id]);
+                setShowForwardModal(true);
+                setContextMenu({ ...contextMenu, visible: false });
+              }}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-slate-700 w-full text-left transition"
+            >
+              <Forward className="w-4 h-4" />
+              Forward
+            </button>
+          )}
 
           {!contextMenu.message.isDeleted && (
             <button
