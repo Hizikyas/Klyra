@@ -48,6 +48,9 @@ interface ChatMessageListProps {
   getFileIcon: (mediaType?: string) => ReactNode;
   onImageClick: (imageUrl: string) => void;
   onOpenContextMenu: (msg: any, e: ReactMouseEvent | ReactTouchEvent) => void;
+  selectionMode?: boolean;
+  selectedMessageIds?: string[];
+  onToggleMessageSelect?: (msgId: string) => void;
 }
 
 export function ChatMessageList({
@@ -57,6 +60,9 @@ export function ChatMessageList({
   getFileIcon,
   onImageClick,
   onOpenContextMenu,
+  selectionMode = false,
+  selectedMessageIds = [],
+  onToggleMessageSelect,
 }: ChatMessageListProps) {
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -105,10 +111,22 @@ export function ChatMessageList({
             return (
               <div
                 key={msg.id}
-                className={cn("flex items-end gap-2 my-2", msg.isOwn ? "justify-end" : "justify-start")}
+                className={cn("flex items-end gap-2 my-2 transition-all p-1 rounded", msg.isOwn ? "justify-end" : "justify-start", selectionMode && "hover:bg-slate-800/50 cursor-pointer")}
                 data-message-id={msg.id}
                 data-is-own={msg.isOwn.toString()}
-                onContextMenu={(e) => onOpenContextMenu(msg, e)}
+                onClick={() => {
+                  if (selectionMode && onToggleMessageSelect) {
+                    onToggleMessageSelect(msg.id);
+                  }
+                }}
+                onContextMenu={(e) => {
+                   if (selectionMode) {
+                     e.preventDefault();
+                     if (onToggleMessageSelect) onToggleMessageSelect(msg.id);
+                   } else {
+                     onOpenContextMenu(msg, e);
+                   }
+                }}
                 onTouchStart={(e) => {
                   longPressTimer.current = setTimeout(() => onOpenContextMenu(msg, e), 500);
                 }}
@@ -119,6 +137,19 @@ export function ChatMessageList({
                   if (longPressTimer.current) clearTimeout(longPressTimer.current);
                 }}
               >
+                {selectionMode && (
+                  <div className="flex items-center justify-center mr-2 mb-2">
+                    <div className={cn(
+                      "w-5 h-5 rounded-md border flex items-center justify-center transition-colors",
+                      selectedMessageIds.includes(msg.id) 
+                        ? "bg-blue-500 border-blue-500" 
+                        : "border-slate-500 bg-transparent"
+                    )}>
+                      {selectedMessageIds.includes(msg.id) && <Check className="w-3.5 h-3.5 text-white" />}
+                    </div>
+                  </div>
+                )}
+
                 {!msg.isOwn && renderAvatarForMessage(msg)}
 
                 <div

@@ -17,6 +17,9 @@ import {
   UserMinus,
   MoreVertical,
   Crown,
+  Forward,
+  X,
+  CheckSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -160,6 +163,97 @@ export function ChatSection(props: ChatSectionProps) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [chatBg, setChatBg] = useState("");
   const chatsRef = useRef<ChatItem[]>([]);
+
+  // Selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
+  const [showForwardModal, setShowForwardModal] = useState(false);
+  const [forwardLoading, setForwardLoading] = useState(false);
+  const [deleteMultipleConfirm, setDeleteMultipleConfirm] = useState(false);
+
+  const toggleSelectionMode = (messageId?: string) => {
+    setSelectionMode(true);
+    if (messageId && !selectedMessageIds.includes(messageId)) {
+      setSelectedMessageIds([messageId]);
+    }
+  };
+
+  const cancelSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedMessageIds([]);
+  };
+
+  const handleToggleMessageSelect = (messageId: string) => {
+    setSelectedMessageIds(prev => 
+      prev.includes(messageId) ? prev.filter(id => id !== messageId) : [...prev, messageId]
+    );
+  };
+
+  const handleDeleteSelected = async () => {
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
+    if (!token || selectedMessageIds.length === 0) return;
+
+    try {
+      const res = await fetch('http://localhost:4000/v1/messages/delete-multiple', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          messageIds: selectedMessageIds,
+          deleteForEveryone
+        })
+      });
+
+      if (res.ok) {
+        setMessages(prev => prev.map(m => selectedMessageIds.includes(m.id) ? { ...m, isDeleted: true, content: undefined, mediaUrl: undefined } : m));
+        cancelSelectionMode();
+        setDeleteMultipleConfirm(false);
+      }
+    } catch (error) {
+      console.error('Failed to delete messages', error);
+    }
+  };
+
+  const handleForwardSelected = async () => {
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('authToken') : null;
+    if (!token || selectedMessageIds.length === 0 || selectedUsers.length === 0) return;
+
+    setForwardLoading(true);
+    try {
+      const forwardTo = selectedUsers.map(id => {
+        const isGroup = chats.find(c => c.id === id)?.isGroup;
+        return { id, type: isGroup ? 'group' : 'user' };
+      });
+
+      const res = await fetch('http://localhost:4000/v1/messages/forward', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          messageIds: [...selectedMessageIds].sort((a,b) => {
+            const indexA = messages.findIndex(m=>m.id===a);
+            const indexB = messages.findIndex(m=>m.id===b);
+            return indexA - indexB;
+          }),
+          forwardTo
+        })
+      });
+
+      if (res.ok) {
+        setShowForwardModal(false);
+        cancelSelectionMode();
+        setSelectedUsers([]);
+      }
+    } catch (error) {
+      console.error('Failed to forward messages', error);
+    } finally {
+      setForwardLoading(false);
+    }
+  };
 
   const [contextMenu, setContextMenu] = useState<{
     message: Message | null;
@@ -1304,8 +1398,38 @@ export function ChatSection(props: ChatSectionProps) {
         )}
         {selectedChat ? (
           <>
-            <div className="p-3 md:p-4 border-b border-slate-700/50 bg-slate-800/20 backdrop-blur-sm">
-              <div className="flex items-center justify-between gap-2">
+            <div className="p-3 md:p-4 border-b border-slate-700/50 bg-slate-800/20 backdrop-blur-sm min-h-[4rem] flex items-center">
+              {selectionMode ? (
+                <div className="flex items-center justify-between gap-2 w-full">
+                  <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" onClick={cancelSelectionMode} className="text-slate-300 hover:text-white">
+                      <X className="h-5 w-5" />
+                    </Button>
+                    <span className="text-white font-medium text-lg">{selectedMessageIds.length} Selected</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => setShowForwardModal(true)}
+                      disabled={selectedMessageIds.length === 0}
+                      className="text-slate-300 hover:text-white flex items-center gap-2"
+                    >
+                      <Forward className="h-5 w-5" />
+                      <span className="hidden md:inline">Forward</span>
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => setDeleteMultipleConfirm(true)}
+                      disabled={selectedMessageIds.length === 0}
+                      className="text-red-400 hover:text-red-300 flex items-center gap-2"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                      <span className="hidden md:inline">Delete</span>
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2 w-full">
                 {(isMobile || window.innerWidth < 768) && (
                   <Button
                     variant="ghost"
@@ -1381,6 +1505,7 @@ export function ChatSection(props: ChatSectionProps) {
                   </Button>
                 </div>
               </div>
+              )}
             </div>
 
             <ScrollArea ref={scrollAreaRef} className={cn("flex-1 scrollbar-custom overflow-y-auto", isMobile ? "max-h-[calc(100vh-12rem)]" : "max-h-[calc(100vh-8rem)] md:max-h-[calc(100vh-8rem)]")}>
@@ -1418,6 +1543,9 @@ export function ChatSection(props: ChatSectionProps) {
                     getFileIcon={getFileIcon}
                     onImageClick={handleImageClick}
                     onOpenContextMenu={openContextMenu}
+                    selectionMode={selectionMode}
+                    selectedMessageIds={selectedMessageIds}
+                    onToggleMessageSelect={handleToggleMessageSelect}
                   />
                 )}
                 <div ref={lastMessageRef} />
@@ -1528,7 +1656,7 @@ export function ChatSection(props: ChatSectionProps) {
           <div className="bg-slate-800 p-4 rounded-lg">
             <h3 className="text-white mb-2">Delete message?</h3>
             {contextMenu.message?.isOwn && (
-              <label className="flex items-center text-slate-300">
+              <label className="flex items-center text-slate-300 mb-4">
                 <input
                   type="checkbox"
                   checked={deleteForEveryone}
@@ -1550,6 +1678,87 @@ export function ChatSection(props: ChatSectionProps) {
         </div>
       )}
 
+      {deleteMultipleConfirm && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50">
+          <div className="bg-slate-800 p-6 rounded-lg w-full max-w-sm">
+            <h3 className="text-white text-lg font-medium mb-4">Delete {selectedMessageIds.length} message(s)?</h3>
+            <label className="flex items-center text-slate-300 mb-6">
+              <input
+                type="checkbox"
+                checked={deleteForEveryone}
+                onChange={(e) => setDeleteForEveryone(e.target.checked)}
+                className="mr-2"
+              />
+              Delete for everyone (only your messages)
+            </label>
+            <div className="flex justify-end space-x-2">
+              <Button variant="ghost" onClick={() => { setDeleteMultipleConfirm(false); setDeleteForEveryone(false); }}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteSelected}>
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showForwardModal && (
+        <Modal onClose={() => setShowForwardModal(false)}>
+          <div className="bg-slate-800 p-6 rounded-lg w-full max-w-md">
+            <h3 className="text-lg font-semibold text-white mb-4">Forward {selectedMessageIds.length} message(s)</h3>
+            <div className="space-y-3 max-h-96 overflow-y-auto mb-4">
+              {chats.filter(c => c.id !== currentUser?.id).length === 0 ? (
+                <p className="text-slate-400 text-center py-4">No recent chats to forward to</p>
+              ) : (
+                chats.filter(c => c.id !== currentUser?.id).map(chat => (
+                  <div key={chat.id} className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
+                    <div className="flex items-center space-x-3 truncate">
+                      <Avatar className="h-8 w-8 flex-shrink-0">
+                        <AvatarImage src={chat.avatar} />
+                        <AvatarFallback className="bg-purple-600 text-white">
+                          {chat.name.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="truncate">
+                        <p className="text-white font-medium truncate">{chat.name}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant={selectedUsers.includes(chat.id) ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setSelectedUsers(prev =>
+                          prev.includes(chat.id)
+                            ? prev.filter(id => id !== chat.id)
+                            : [...prev, chat.id]
+                        );
+                      }}
+                      className="flex-shrink-0 ml-2"
+                    >
+                      {selectedUsers.includes(chat.id) ? "Selected" : "Select"}
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex justify-end space-x-2 mt-4 pt-4 border-t border-slate-700">
+              <Button variant="ghost" onClick={() => setShowForwardModal(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleForwardSelected} 
+                disabled={!selectedUsers.length || forwardLoading}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {forwardLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Forward className="w-4 h-4 mr-2" />}
+                Forward ({selectedUsers.length})
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {contextMenu.visible && contextMenu.message && (
         <div
           ref={menuRef}
@@ -1565,6 +1774,17 @@ export function ChatSection(props: ChatSectionProps) {
           >
             <Reply className="w-4 h-4" />
             Reply
+          </button>
+
+          <button
+            onClick={() => {
+              toggleSelectionMode(contextMenu.message!.id);
+              setContextMenu({ ...contextMenu, visible: false });
+            }}
+            className="flex items-center gap-3 px-4 py-2.5 text-sm text-white hover:bg-slate-700 w-full text-left transition"
+          >
+            <CheckSquare className="w-4 h-4" />
+            Select Message
           </button>
 
           {!contextMenu.message.isDeleted && (
