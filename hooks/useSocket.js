@@ -5,10 +5,15 @@ import { io } from "socket.io-client";
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://klyra-back.onrender.com"; // Match your backend server URL
 
+/**
+ * @param {string | null} userId
+ * @param {string | null} groupId
+ * @returns {{ socket: import("socket.io-client").Socket | null, isConnected: boolean }}
+ */
 export const useSocket = (userId, groupId) => {
-  const [socket, setSocket] = useState(null);
+  const [socket, setSocket] = useState(/** @type {import("socket.io-client").Socket | null} */ (null));
   const [isConnected, setIsConnected] = useState(false);
-  const socketRef = useRef(null);
+  const socketRef = useRef(/** @type {import("socket.io-client").Socket | null} */ (null));
 
   useEffect(() => {
     // Initialize Socket.IO client

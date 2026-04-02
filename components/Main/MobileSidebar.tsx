@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { Video, Users, Settings, X } from "lucide-react"
 import { IoChatboxEllipsesSharp } from "react-icons/io5"
 import { Button } from "@/components/ui/button"

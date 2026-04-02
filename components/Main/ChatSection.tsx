@@ -209,7 +209,7 @@ export function ChatSection(props: ChatSectionProps) {
       });
 
       if (res.ok) {
-        setMessages(prev => prev.map(m => selectedMessageIds.includes(m.id) ? { ...m, isDeleted: true, content: undefined, mediaUrl: undefined } : m));
+        setMessages(prev => prev.map(m => selectedMessageIds.includes(m.id) ? { ...m, isDeleted: true, content: "", mediaUrl: undefined } : m));
         cancelSelectionMode();
         setDeleteMultipleConfirm(false);
       }
