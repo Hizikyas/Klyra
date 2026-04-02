@@ -13,16 +13,16 @@ interface RightSidebarProps {
 }
 
 export function RightSidebar({ selectedChat, collapsed = false, onClose }: RightSidebarProps) {
-  if (!selectedChat) {
-    return null
-  }
-
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<any | null>(null)
   const [isImageOpen, setIsImageOpen] = useState(false)
   const [sharedFiles, setSharedFiles] = useState<any[]>([])
   const [loadingFiles, setLoadingFiles] = useState(false)
+
+  if (!selectedChat) {
+    return null
+  }
 
   const openCallLink = (url: string) => {
     const opened = window.open(url, "_blank")

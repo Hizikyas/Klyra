@@ -14,13 +14,22 @@ interface MobileSidebarProps {
 }
 
 export function MobileSidebar({ isOpen, onClose, activeTab, onTabChange }: MobileSidebarProps) {
-  const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const tabs = [
     { id: "chats", label: "Chats", icon: IoChatboxEllipsesSharp },
     { id: "groups", label: "Groups", icon: Users }, // Changed from "contacts" to "groups"
     { id: "video", label: "Video Calls", icon: Video },
     { id: "settings", label: "Settings", icon: Settings },
   ]
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("currentUser")
+      setCurrentUser(raw ? JSON.parse(raw) : null)
+    } catch {
+      setCurrentUser(null)
+    }
+  }, [])
 
   const handleTabChange = (tab: string) => {
     onTabChange(tab)

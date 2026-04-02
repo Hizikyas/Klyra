@@ -14,7 +14,7 @@ interface SettingsContentProps {
 }
 
 export function SettingsContent({ selectedSetting, isMobile = false }: SettingsContentProps) {
-  const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
+  const [currentUser, setCurrentUser] = useState<any>(null)
 
   const backgrounds = [
     { id: "default", name: "Default (None)", src: "" },
@@ -25,14 +25,38 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
   
   const [selectedBg, setSelectedBg] = useState("");
   const [profileData, setProfileData] = useState({
-    fullname: currentUser?.fullname || "",
-    username: currentUser?.username || "",
-    email: currentUser?.email || "",
-    phone: currentUser?.phone || "",
-    bio: currentUser?.bio || ""
+    fullname: "",
+    username: "",
+    email: "",
+    phone: "",
+    bio: ""
   });
   const [isSaving, setIsSaving] = useState(false);
   const [stats, setStats] = useState({ friends: 0, messages: 0 });
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("currentUser")
+      const parsed = raw ? JSON.parse(raw) : null
+      setCurrentUser(parsed)
+      setProfileData({
+        fullname: parsed?.fullname || "",
+        username: parsed?.username || "",
+        email: parsed?.email || "",
+        phone: parsed?.phone || "",
+        bio: parsed?.bio || ""
+      })
+    } catch {
+      setCurrentUser(null)
+      setProfileData({
+        fullname: "",
+        username: "",
+        email: "",
+        phone: "",
+        bio: ""
+      })
+    }
+  }, [])
 
   useEffect(() => {
     setSelectedBg(localStorage.getItem("chatBg") || "");

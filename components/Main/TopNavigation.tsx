@@ -21,7 +21,7 @@ interface TopNavigationProps {
 }
 
 export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNavigationProps) {
-  const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [query, setQuery] = useState("")
   const [isOpen, setIsOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -31,6 +31,15 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
   const [hasSubmitted, setHasSubmitted] = useState(false)
   const [showMobileSearch, setShowMobileSearch] = useState(false)
   const [unreadSendersCount, setUnreadSendersCount] = useState(0)
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("currentUser")
+      setCurrentUser(raw ? JSON.parse(raw) : null)
+    } catch {
+      setCurrentUser(null)
+    }
+  }, [])
 
   // Listen for unread count updates
   useEffect(() => {

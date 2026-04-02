@@ -353,7 +353,7 @@ const Authentication = () => {
           }`}
         >
           <div className="h-full flex flex-col items-center justify-center px-10">
-            <h1 className="text-2xl font-bold mb-3 font-['Archiv_Grotesk'] text-white mb-[2rem]">
+            <h1 className="text-2xl font-bold font-['Archiv_Grotesk'] text-white mb-[2rem]">
               {isLogin ? "Login" : "Fill personal details to sign up"}
             </h1>
 

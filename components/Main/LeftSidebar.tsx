@@ -13,9 +13,18 @@ interface LeftSidebarProps {
 }
 
 export function LeftSidebar({ activeTab, onTabChange }: LeftSidebarProps) {
-  const currentUser = sessionStorage.getItem("currentUser") ? JSON.parse(sessionStorage.getItem("currentUser")!) : null
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [collapsed, setCollapsed] = useState(true)
   const [isHovered, setIsHovered] = useState(false)
+
+  React.useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("currentUser")
+      setCurrentUser(raw ? JSON.parse(raw) : null)
+    } catch {
+      setCurrentUser(null)
+    }
+  }, [])
   const tabs = [
     { id: "chats", label: "Chats", icon: IoChatboxEllipsesSharp },
     { id: "groups", label: "Groups", icon: GroupsIcon }, // Changed from "contacts" to "groups"
