@@ -166,7 +166,7 @@ export function ChatSection(props: ChatSectionProps) {
   const [chatBg, setChatBg] = useState("");
   const chatsRef = useRef<ChatItem[]>([]);
 
-  // Selection state
+  
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [showForwardModal, setShowForwardModal] = useState(false);
@@ -579,7 +579,6 @@ export function ChatSection(props: ChatSectionProps) {
     } catch (e) {}
     chatsRef.current = chats;
     
-    // Broadcast the number of unique senders (conversations) with unread messages
     const unreadSenders = chats.filter(c => c.unread > 0).length;
     window.dispatchEvent(new CustomEvent('updateUnreadCount', { detail: unreadSenders }));
   }, [chats]);
@@ -683,8 +682,6 @@ export function ChatSection(props: ChatSectionProps) {
     const handleOnlineUsers = (userIds: string[]) => {
       setOnlineStatus((prev) => {
         const next = { ...prev };
-        // Reconcile presence snapshot: mark known users offline first,
-        // then set currently-online user ids to true.
         Object.keys(next).forEach((id) => {
           next[id] = { ...next[id], isOnline: false };
         });
