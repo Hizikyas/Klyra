@@ -81,7 +81,7 @@ const ForgotPassword = () => {
   };
 
   const handleNextStep = async (step: number) => {
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://klyra-back.onrender.com";
     if (step === 1) {
       try {
         const res = await fetch(`${backendUrl}/v1/users/forgotPassword`, {

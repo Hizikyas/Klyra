@@ -57,7 +57,7 @@ export function TopNavigation({ onMobileSidebarToggle, onSettingsClick }: TopNav
       try {
         setIsLoading(true)
         // Narrow payload; backend supports fields/limit via AppFeatures
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000"}/v1/users?limit=20&fields=id,fullname,username,avatar`)
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "https://klyra-back.onrender.com"}/v1/users?limit=20&fields=id,fullname,username,avatar`)
         const data = await res.json()
         if (isCancelled) return
         const q = debouncedQuery.toLowerCase()

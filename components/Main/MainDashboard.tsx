@@ -46,7 +46,7 @@ export function MainDashboard() {
     const joinUserGroups = async () => {
       try {
         const token = sessionStorage.getItem('authToken');
-        const response = await fetch('http://localhost:4000/v1/groups', {
+        const response = await fetch('https://klyra-back.onrender.com/v1/groups', {
           headers: { Authorization: `Bearer ${token}` },
         });
         

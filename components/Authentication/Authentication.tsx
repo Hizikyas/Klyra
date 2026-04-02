@@ -165,7 +165,7 @@ const Authentication = () => {
       }
 
       setIsAuthLoading(true);
-      const response = await fetch("http://localhost:4000/v1/users/login", {
+      const response = await fetch("https://klyra-back.onrender.com/v1/users/login", {
         method: "POST",
         credentials: "include",
         headers: {
@@ -223,7 +223,7 @@ const Authentication = () => {
       }
 
       setIsAuthLoading(true);
-      const response = await fetch("http://localhost:4000/v1/users/signup", {
+      const response = await fetch("https://klyra-back.onrender.com/v1/users/signup", {
       method: "POST",
       credentials: "include",
       body: userData,

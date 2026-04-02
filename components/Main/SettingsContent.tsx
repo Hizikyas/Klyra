@@ -43,7 +43,7 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
       if (!currentUser?.id) return;
       try {
         const token = sessionStorage.getItem('authToken');
-        const res = await fetch(`http://localhost:4000/v1/users/${currentUser.id}`, {
+        const res = await fetch(`https://klyra-back.onrender.com/v1/users/${currentUser.id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
@@ -77,7 +77,7 @@ export function SettingsContent({ selectedSetting, isMobile = false }: SettingsC
     setIsSaving(true);
     try {
       const token = sessionStorage.getItem('authToken');
-      const res = await fetch(`http://localhost:4000/v1/users/${currentUser.id}`, {
+      const res = await fetch(`https://klyra-back.onrender.com/v1/users/${currentUser.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 
-const SOCKET_URL = "http://localhost:4000"; // Match your backend server URL
+const SOCKET_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://klyra-back.onrender.com"; // Match your backend server URL
 
 export const useSocket = (userId, groupId) => {
   const [socket, setSocket] = useState(null);

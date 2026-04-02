@@ -79,7 +79,7 @@ export function GroupSidebar({
       try {
         setLoading(true);
         const token = sessionStorage.getItem("authToken");
-        const response = await fetch(`http://localhost:4000/v1/groups/${groupId}`, {
+        const response = await fetch(`https://klyra-back.onrender.com/v1/groups/${groupId}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -107,7 +107,7 @@ export function GroupSidebar({
       try {
         const token = sessionStorage.getItem("authToken");
         if (!token) return;
-        const response = await fetch(`http://localhost:4000/v1/groups/${groupId}/messages`, {
+        const response = await fetch(`https://klyra-back.onrender.com/v1/groups/${groupId}/messages`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) return;
@@ -153,7 +153,7 @@ export function GroupSidebar({
     const token = sessionStorage.getItem("authToken");
     if (!token) return;
 
-    const res = await fetch(`http://localhost:4000/v1/groups/${groupId}/members/accept`, {
+    const res = await fetch(`https://klyra-back.onrender.com/v1/groups/${groupId}/members/accept`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -173,7 +173,7 @@ export function GroupSidebar({
     const token = sessionStorage.getItem("authToken");
     if (!token) return;
 
-    const res = await fetch(`http://localhost:4000/v1/groups/${groupId}/members/decline`, {
+    const res = await fetch(`https://klyra-back.onrender.com/v1/groups/${groupId}/members/decline`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -198,7 +198,7 @@ export function GroupSidebar({
     if (typeof opts.name === "string") formData.append("name", opts.name);
     if (opts.avatarFile) formData.append("avatar", opts.avatarFile);
 
-    const response = await fetch(`http://localhost:4000/v1/groups/${groupId}`, {
+    const response = await fetch(`https://klyra-back.onrender.com/v1/groups/${groupId}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}` },
       body: formData,

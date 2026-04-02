@@ -33,7 +33,7 @@ export function Groups({ onGroupSelect, selectedGroup }: GroupsProps) {
     try {
       setLoading(true)
       const token = sessionStorage.getItem('authToken')
-      const response = await fetch('http://localhost:4000/v1/groups', {
+      const response = await fetch('https://klyra-back.onrender.com/v1/groups', {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -51,7 +51,7 @@ export function Groups({ onGroupSelect, selectedGroup }: GroupsProps) {
   const fetchAvailableUsers = async () => {
     try {
       const token = sessionStorage.getItem('authToken')
-      const response = await fetch('http://localhost:4000/v1/users', {
+      const response = await fetch('https://klyra-back.onrender.com/v1/users', {
         headers: { Authorization: `Bearer ${token}` },
       })
 
@@ -82,7 +82,7 @@ export function Groups({ onGroupSelect, selectedGroup }: GroupsProps) {
         formData.append("avatar", newGroupAvatarFile)
       }
 
-      const response = await fetch('http://localhost:4000/v1/groups', {
+      const response = await fetch('https://klyra-back.onrender.com/v1/groups', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,

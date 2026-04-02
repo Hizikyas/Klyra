@@ -196,7 +196,7 @@ export function ChatSection(props: ChatSectionProps) {
     if (!token || selectedMessageIds.length === 0) return;
 
     try {
-      const res = await fetch('http://localhost:4000/v1/messages/delete-multiple', {
+      const res = await fetch('https://klyra-back.onrender.com/v1/messages/delete-multiple', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -229,7 +229,7 @@ export function ChatSection(props: ChatSectionProps) {
         return { id, type: isGroup ? 'group' : 'user' };
       });
 
-      const res = await fetch('http://localhost:4000/v1/messages/forward', {
+      const res = await fetch('https://klyra-back.onrender.com/v1/messages/forward', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -289,7 +289,7 @@ export function ChatSection(props: ChatSectionProps) {
     const fetchGroupInfo = async () => {
       try {
         const token = sessionStorage.getItem('authToken');
-        const response = await fetch(`http://localhost:4000/v1/groups/${selectedChatKey}`, {
+        const response = await fetch(`https://klyra-back.onrender.com/v1/groups/${selectedChatKey}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -315,7 +315,7 @@ export function ChatSection(props: ChatSectionProps) {
   const fetchAvailableUsers = async () => {
     try {
       const token = sessionStorage.getItem('authToken');
-      const response = await fetch('http://localhost:4000/v1/users', {
+      const response = await fetch('https://klyra-back.onrender.com/v1/users', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -509,11 +509,11 @@ export function ChatSection(props: ChatSectionProps) {
 
       try {
         const [dmRes, groupsRes] = await Promise.all([
-          fetch('http://localhost:4000/v1/messages/conversations', {
+          fetch('https://klyra-back.onrender.com/v1/messages/conversations', {
             headers: { Authorization: `Bearer ${token}` },
             credentials: 'include',
           }),
-          fetch('http://localhost:4000/v1/groups', {
+          fetch('https://klyra-back.onrender.com/v1/groups', {
             headers: { Authorization: `Bearer ${token}` },
           })
         ]);
@@ -603,8 +603,8 @@ export function ChatSection(props: ChatSectionProps) {
       try {
         const isGroup = selectedChatObj?.isGroup;
         const url = new URL(isGroup 
-          ? `http://localhost:4000/v1/groups/${chatKey}/messages`
-          : 'http://localhost:4000/v1/messages'
+          ? `https://klyra-back.onrender.com/v1/groups/${chatKey}/messages`
+          : 'https://klyra-back.onrender.com/v1/messages'
         );
         
         if (!isGroup) {
@@ -891,8 +891,8 @@ export function ChatSection(props: ChatSectionProps) {
         }
 
         const endpoint = isGroup 
-          ? 'http://localhost:4000/v1/groups/messages'
-          : 'http://localhost:4000/v1/messages';
+          ? 'https://klyra-back.onrender.com/v1/groups/messages'
+          : 'https://klyra-back.onrender.com/v1/messages';
 
         const res = await fetch(endpoint, {
           method: 'POST',
@@ -954,7 +954,7 @@ export function ChatSection(props: ChatSectionProps) {
     
     try {
       const token = sessionStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:4000/v1/groups/${selectedChatKey}/members`, {
+      const response = await fetch(`https://klyra-back.onrender.com/v1/groups/${selectedChatKey}/members`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -967,7 +967,7 @@ export function ChatSection(props: ChatSectionProps) {
         setShowAddMembersModal(false);
         setSelectedUsers([]);
         if (selectedChatObj?.isGroup) {
-          const groupRes = await fetch(`http://localhost:4000/v1/groups/${selectedChatKey}`, {
+          const groupRes = await fetch(`https://klyra-back.onrender.com/v1/groups/${selectedChatKey}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (groupRes.ok) {
@@ -986,7 +986,7 @@ export function ChatSection(props: ChatSectionProps) {
     
     try {
       const token = sessionStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:4000/v1/groups/${selectedChatKey}/members/${userId}`, {
+      const response = await fetch(`https://klyra-back.onrender.com/v1/groups/${selectedChatKey}/members/${userId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1007,7 +1007,7 @@ export function ChatSection(props: ChatSectionProps) {
     
     try {
       const token = sessionStorage.getItem('authToken');
-      const response = await fetch(`http://localhost:4000/v1/groups/${selectedChatKey}/leave`, {
+      const response = await fetch(`https://klyra-back.onrender.com/v1/groups/${selectedChatKey}/leave`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -1107,7 +1107,7 @@ export function ChatSection(props: ChatSectionProps) {
     if (!token) return;
 
     try {
-      const res = await fetch(`http://localhost:4000/v1/messages/${contextMenu.message.id}`, {
+      const res = await fetch(`https://klyra-back.onrender.com/v1/messages/${contextMenu.message.id}`, {
         method: 'DELETE',
         credentials: 'include',
         headers: {
@@ -1235,8 +1235,8 @@ export function ChatSection(props: ChatSectionProps) {
     else formData.append("recipientId", selectedChatKey);
 
     const endpoint = isGroup
-      ? "http://localhost:4000/v1/groups/messages"
-      : "http://localhost:4000/v1/messages";
+      ? "https://klyra-back.onrender.com/v1/groups/messages"
+      : "https://klyra-back.onrender.com/v1/messages";
 
     try {
       await fetch(endpoint, {

@@ -53,7 +53,7 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
     formData.append("recipientId", selectedChat)
 
     try {
-      await fetch("http://localhost:4000/v1/messages", {
+      await fetch("https://klyra-back.onrender.com/v1/messages", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -98,7 +98,7 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
       setUser(null)
 
       try {
-        const res = await fetch(`http://localhost:4000/v1/users/${userId}`, {
+        const res = await fetch(`https://klyra-back.onrender.com/v1/users/${userId}`, {
           method: "GET",
           headers: { "Content-Type": "application/json" },
         })
@@ -135,7 +135,7 @@ export function RightSidebar({ selectedChat, collapsed = false, onClose }: Right
       try {
         const token = sessionStorage.getItem("authToken")
         if (!token) return
-        const res = await fetch(`http://localhost:4000/v1/messages?recipientId=${recipientId}`, {
+        const res = await fetch(`https://klyra-back.onrender.com/v1/messages?recipientId=${recipientId}`, {
           headers: { Authorization: `Bearer ${token}` },
           credentials: "include",
         })
