@@ -35,7 +35,15 @@ export function ChatComposer({
   getFileIcon,
 }: ChatComposerProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const emojiContainerRef = useRef<HTMLDivElement | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  const emojis = [
+    "😀", "😂", "😊", "😍", "🥳", "😎", "🤔", "😢", "😭", "😡",
+    "👍", "👎", "🙏", "👏", "💯", "🔥", "❤️", "💙", "🎉", "✨",
+  ];
 
   const placeholder = isGroup ? "Message to group..." : "Type a message...";
 
@@ -61,6 +69,36 @@ export function ChatComposer({
 
     setImagePreviewUrl(null);
   }, [selectedFile]);
+
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!emojiContainerRef.current) return;
+      if (!emojiContainerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [showEmojiPicker]);
+
+  const handleEmojiSelect = (emoji: string) => {
+    onMessageChange(`${message}${emoji}`);
+    inputRef.current?.focus();
+  };
 
   return (
     <div className="p-3 md:p-4 border-t border-slate-700/50 bg-slate-800/20 backdrop-blur-sm sticky bottom-0 z-10">
@@ -132,19 +170,41 @@ export function ChatComposer({
 
         <div className="flex-1 relative min-w-0">
           <Input
+            ref={inputRef}
             value={message}
             onChange={(e) => onMessageChange(e.target.value)}
             placeholder={placeholder}
             className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-purple-400 pr-10 md:pr-12 text-sm md:text-base"
             onKeyPress={(e) => e.key === "Enter" && onSendMessage()}
           />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-1 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white hidden sm:flex"
-          >
-            <Smile className="h-3 w-3 md:h-4 md:w-4" />
-          </Button>
+          <div ref={emojiContainerRef} className="absolute right-1 top-1/2 -translate-y-1/2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-slate-400 hover:text-white flex"
+              onClick={() => setShowEmojiPicker((prev) => !prev)}
+              type="button"
+            >
+              <Smile className="h-3 w-3 md:h-4 md:w-4" />
+            </Button>
+
+            {showEmojiPicker && (
+              <div className="absolute bottom-11 right-0 w-60 rounded-lg border border-slate-600 bg-slate-800/95 p-3 shadow-xl backdrop-blur">
+                <div className="grid grid-cols-5 gap-2">
+                  {emojis.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => handleEmojiSelect(emoji)}
+                      className="rounded-md p-1.5 text-lg transition-colors hover:bg-slate-700/70"
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <Button
