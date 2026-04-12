@@ -68,6 +68,29 @@ export function MainDashboard() {
     };
   }, [socket, isConnected, currentUser?.id]);
 
+  useEffect(() => {
+    const handleAddChatFromSearch = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        id?: string;
+        name?: string;
+        username?: string;
+        avatar?: string | null;
+      }>;
+
+      const chatId = customEvent.detail?.id;
+      if (!chatId) return;
+
+      setActiveTab("chats");
+      setSelectedChat(String(chatId));
+      setIsRightCollapsed(false);
+    };
+
+    window.addEventListener("klyra:addChatFromSearch", handleAddChatFromSearch as EventListener);
+    return () => {
+      window.removeEventListener("klyra:addChatFromSearch", handleAddChatFromSearch as EventListener);
+    };
+  }, []);
+
   const handleSettingsClick = () => {
     setActiveTab("settings");
     setSelectedSetting("profile");
